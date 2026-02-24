@@ -1,0 +1,5 @@
+django
+djangorestframework
+drf-spectacular
+openimis-be-core
+openimis-be-individual

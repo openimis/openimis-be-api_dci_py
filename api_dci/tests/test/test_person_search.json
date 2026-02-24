@@ -1,0 +1,23 @@
+{
+  "signature": {},
+  "header": {
+    "version": "1.0.0",
+    "message_id": "test-search-001",
+    "message_ts": "2024-02-21T10:00:00Z",
+    "action": "search",
+    "sender_id": "test-client",
+    "receiver_id": "openimis"
+  },
+  "message": {
+    "transaction_id": "txn-test-001",
+    "search_criteria": {
+      "reg_type": "person",
+      "query_type": "sync",
+      "query": {
+        "@type": "Person",
+        "firstName": "John",
+        "lastName": "Doe"
+      }
+    }
+  }
+}
