@@ -35,20 +35,39 @@ class PersonConverter:
         if individual.dob:
             person["dob"] = individual.dob.isoformat()
             
-        # Gender mapping
-        if individual.gender:
-            gender_map = {
-                'M': 'Male',
-                'F': 'Female',
-                'O': 'Other'
-            }
-            person["gender"] = gender_map.get(individual.gender.code, 'Other')
-            
-        # Contact information
+        # Gender mapping - Individual model doesn't have a gender field by default
+        # Gender might be in json_ext or not stored at all
+        if hasattr(individual, 'gender') and individual.gender:
+            try:
+                gender_map = {
+                    'M': 'Male',
+                    'F': 'Female',
+                    'O': 'Other'
+                }
+                if hasattr(individual.gender, 'code'):
+                    person["gender"] = gender_map.get(individual.gender.code, 'Other')
+                else:
+                    person["gender"] = gender_map.get(individual.gender, 'Other')
+            except AttributeError:
+                pass  # Gender field exists but has issues, skip it
+
+        # Try to get gender from json_ext
+        if 'gender' not in person and individual.json_ext:
+            if isinstance(individual.json_ext, dict) and 'gender' in individual.json_ext:
+                person["gender"] = individual.json_ext['gender']
+
+        # Contact information - these fields may not exist in Individual model
         if hasattr(individual, 'phone') and individual.phone:
             person["phone"] = individual.phone
+        elif individual.json_ext and isinstance(individual.json_ext, dict):
+            if 'phone' in individual.json_ext:
+                person["phone"] = individual.json_ext['phone']
+
         if hasattr(individual, 'email') and individual.email:
             person["email"] = individual.email
+        elif individual.json_ext and isinstance(individual.json_ext, dict):
+            if 'email' in individual.json_ext:
+                person["email"] = individual.json_ext['email']
             
         return person
     
