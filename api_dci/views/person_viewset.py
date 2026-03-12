@@ -77,43 +77,75 @@ def sync_search(request):
         )
     
     validated_data = serializer.validated_data
-    transaction_id = validated_data['message']['transaction_id']
-    search_criteria = validated_data['message']['search_criteria']
-    query = search_criteria['query']
     
-    # Build query for Individual model
     try:
+        message_data = validated_data['message']
+        transaction_id = message_data['transaction_id']
+        search_requests = message_data.get('search_request', [])
+        
+        if not search_requests:
+            raise ValueError("No search_request provided")
+            
+        search_request = search_requests[0]
+        reference_id = search_request.get('reference_id', '')
+        search_criteria = search_request.get('search_criteria', {})
+        query_obj = search_criteria.get('query', {})
+        
+        # Navigate DCI expression structure: query -> value -> expression -> query
+        expression_q = query_obj.get('value', {}).get('expression', {}).get('query', {})
+        
+        # fallback to the flat query if expression structure is missing (for backward compatibility if needed)
+        if not expression_q:
+            expression_q = query_obj
+
+        # Build query for Individual model
         from individual.models import Individual
         
         # Start with all valid individuals
         queryset = Individual.objects.filter(is_deleted=False)
         
+        # Find $and or $or arrays if they exist, or just use expression_q as a flat dict
+        filter_list = expression_q.get('$and', [])
+        if not filter_list and isinstance(expression_q, dict) and '$and' not in expression_q:
+            # Maybe flat
+            filter_list = [{k: {"$eq": v}} for k, v in expression_q.items() if k != '@type']
+        
+        # Extract filters
+        filters = {}
+        for item in filter_list:
+            if isinstance(item, dict):
+                for k, v in item.items():
+                    if isinstance(v, dict) and '$eq' in v:
+                        filters[k] = v['$eq']
+                    else:
+                        filters[k] = v
+
         # Apply search filters
-        if 'firstName' in query:
-            queryset = queryset.filter(first_name__icontains=query['firstName'])
+        if 'firstName' in filters:
+            queryset = queryset.filter(first_name__icontains=filters['firstName'])
         
-        if 'lastName' in query:
-            queryset = queryset.filter(last_name__icontains=query['lastName'])
+        if 'lastName' in filters:
+            queryset = queryset.filter(last_name__icontains=filters['lastName'])
         
-        if 'dob' in query:
-            queryset = queryset.filter(dob=query['dob'])
+        if 'dob' in filters:
+            queryset = queryset.filter(dob=filters['dob'])
         
-        if 'gender' in query:
+        if 'gender' in filters:
             # Map DCI gender to OpenIMIS gender code
             gender_map = {
                 'Male': 'M',
                 'Female': 'F',
                 'Other': 'O'
             }
-            gender_code = gender_map.get(query['gender'])
+            gender_code = gender_map.get(filters['gender'])
             if gender_code:
                 queryset = queryset.filter(gender__code=gender_code)
         
-        if 'phone' in query:
-            queryset = queryset.filter(phone__icontains=query['phone'])
+        if 'phone' in filters:
+            queryset = queryset.filter(phone__icontains=filters['phone'])
         
-        if 'email' in query:
-            queryset = queryset.filter(email__icontains=query['email'])
+        if 'email' in filters:
+            queryset = queryset.filter(email__icontains=filters['email'])
         
         # Convert to DCI Person format
         persons = [
@@ -147,7 +179,8 @@ def sync_search(request):
     response_data = DCISearchResponseSerializer.create_response(
         request_data=request.data,
         persons=persons,
-        transaction_id=transaction_id
+        transaction_id=transaction_id,
+        reference_id=reference_id
     )
     
     return Response(response_data, status=status.HTTP_200_OK)
