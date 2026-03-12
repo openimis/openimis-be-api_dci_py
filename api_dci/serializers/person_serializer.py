@@ -20,7 +20,11 @@ class DCIHeaderSerializer(serializers.Serializer):
     message_ts = serializers.DateTimeField()
     action = serializers.CharField(max_length=50)
     sender_id = serializers.CharField(max_length=255)
+    sender_uri = serializers.URLField(required=False)
     receiver_id = serializers.CharField(max_length=255, required=False)
+    total_count = serializers.IntegerField(required=False)
+    is_msg_encrypted = serializers.BooleanField(default=False, required=False)
+    meta = serializers.DictField(required=False)
     status = serializers.CharField(max_length=50, required=False)
 
 
@@ -74,6 +78,12 @@ class DCISearchRequestSerializer(serializers.Serializer):
     header = DCIHeaderSerializer()
     message = DCISearchMessageSerializer()
 
+    def validate_signature(self, value):
+        """Validate DCI signature string format."""
+        if value and not value.startswith('Signature: '):
+            raise serializers.ValidationError("Signature must start with 'Signature: '")
+        return value
+
 
 class DCISearchResponseMessageSerializer(serializers.Serializer):
     """DCI search response message"""
@@ -112,7 +122,11 @@ class DCISearchResponseSerializer(serializers.Serializer):
                 'message_ts': datetime.utcnow().isoformat() + 'Z',
                 'action': 'on-search',
                 'sender_id': request_data['header'].get('receiver_id', 'openimis'),
+                'sender_uri': request_data['header'].get('sender_uri', ''),
                 'receiver_id': request_data['header']['sender_id'],
+                'total_count': len(persons),
+                'is_msg_encrypted': request_data['header'].get('is_msg_encrypted', False),
+                'meta': request_data['header'].get('meta', {}),
                 'status': 'success'
             },
             'message': {
