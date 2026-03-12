@@ -88,29 +88,42 @@ Content-Type: application/json
 Authorization: Bearer <token>
 
 {
-  "signature": {
-    "created": "2026-02-20T23:54:00Z",
-    "expires": "2026-02-21T00:04:00Z"
-  },
+  "signature": "Signature: namespace=\"spdci\", kidId=\"...\", algorithm=\"ed25519\", headers=\"...\", signature=\"...\"",
   "header": {
     "version": "1.0.0",
     "message_id": "uuid-1234",
     "message_ts": "2026-02-20T23:54:00Z",
     "action": "search",
     "sender_id": "external-system",
-    "receiver_id": "openimis"
+    "receiver_id": "openimis",
+    "sender_uri": "https://callback.example.com",
+    "is_msg_encrypted": false
   },
   "message": {
     "transaction_id": "tx-5678",
-    "search_criteria": {
-      "reg_type": "person",
-      "query_type": "sync",
-      "query": {
-        "@type": "Person",
-        "firstName": "John",
-        "lastName": "Doe"
+    "search_request": [
+      {
+        "reference_id": "ref-111",
+        "timestamp": "2026-02-20T23:54:00Z",
+        "search_criteria": {
+          "reg_type": "person",
+          "query_type": "sync",
+          "query": {
+            "type": "ns:org:QueryType:expression",
+            "value": {
+              "expression": {
+                "query": {
+                  "$and": [
+                    {"firstName": {"$eq": "John"}},
+                    {"lastName": {"$eq": "Doe"}}
+                  ]
+                }
+              }
+            }
+          }
+        }
       }
-    }
+    ]
   }
 }
 ```
@@ -119,27 +132,43 @@ Authorization: Bearer <token>
 
 ```json
 {
-  "signature": {...},
+  "signature": "Signature: namespace=\"spdci\", kidId=\"...\", algorithm=\"ed25519\", headers=\"...\", signature=\"...\"",
   "header": {
     "version": "1.0.0",
     "message_id": "uuid-response",
     "message_ts": "2026-02-20T23:54:01Z",
     "action": "on-search",
-    "status": "success"
+    "status": "success",
+    "sender_id": "openimis",
+    "receiver_id": "external-system",
+    "sender_uri": "https://callback.example.com",
+    "total_count": 1,
+    "is_msg_encrypted": false,
+    "meta": {}
   },
   "message": {
     "transaction_id": "tx-5678",
-    "data": [
+    "search_response": [
       {
-        "@type": "Person",
-        "id": "openimis:individual:12345",
-        "firstName": "John",
-        "lastName": "Doe",
-        "dob": "1990-01-15",
-        "gender": "Male"
+        "reference_id": "ref-111",
+        "timestamp": "2026-02-20T23:54:01Z",
+        "status": "succ",
+        "status_reason_code": "succ",
+        "status_reason_message": "Success",
+        "registry_data": {
+          "data": [
+            {
+              "@type": "Person",
+              "id": "openimis:individual:12345",
+              "firstName": "John",
+              "lastName": "Doe",
+              "dob": "1990-01-15",
+              "gender": "Male"
+            }
+          ]
+        }
       }
-    ],
-    "count": 1
+    ]
   }
 }
 ```
