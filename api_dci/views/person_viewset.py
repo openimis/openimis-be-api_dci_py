@@ -184,3 +184,76 @@ def sync_search(request):
     )
     
     return Response(response_data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=['DCI Registry'],
+    summary='Async Search for Person records',
+    description='''
+    Asynchronously search for Person records following the DCI standard.
+
+    This endpoint returns an immediate 202 ACK response while queuing the search task.
+    Once completed, it POSTs the search array callback back to standard sender_uri.
+    ''',
+    request=DCISearchRequestSerializer,
+    responses={
+        202: DCISearchResponseSerializer,
+    }
+)
+@api_view(['POST'])
+@permission_classes([DCIPersonPermissions])
+def async_search(request):
+    """
+    DCI async search endpoint for Person records.
+    POST /api/dci/reg/search
+    """
+    # Validate request
+    serializer = DCISearchRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {
+                'header': {
+                    'status': 'error',
+                    'message': 'Invalid request format'
+                },
+                'errors': serializer.errors
+            },
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    validated_data = serializer.validated_data
+    
+    try:
+        message_data = validated_data['message']
+        transaction_id = message_data['transaction_id']
+        search_requests = message_data.get('search_request', [])
+        
+        if not search_requests:
+            raise ValueError("No search_request provided")
+            
+        # Queue background processing
+        from ..tasks import BackgroundSearchTask
+        task = BackgroundSearchTask(
+            request_data=request.data,
+            search_requests=search_requests
+        )
+        task.start()
+        
+    except Exception as e:
+        return Response(
+            {
+                'header': {
+                    'status': 'error',
+                    'message': str(e)
+                }
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+    # Return immediate ACK
+    response_data = DCISearchResponseSerializer.create_ack_response(
+        request_data=request.data,
+        transaction_id=transaction_id
+    )
+    
+    return Response(response_data, status=status.HTTP_202_ACCEPTED)

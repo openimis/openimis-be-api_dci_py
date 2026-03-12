@@ -21,7 +21,8 @@ The DCI (Digital Convergence Initiative) is a standard for sharing information i
 
 ### Implemented Endpoints
 
-- `POST /api/dci/reg/sync/search` - Search for Person records following DCI standard
+- `POST /api/dci/reg/sync/search` - Synchronous search for Person records following DCI standard
+- `POST /api/dci/reg/search` - Asynchronous search for Person records following DCI standard
 
 ## Installation
 

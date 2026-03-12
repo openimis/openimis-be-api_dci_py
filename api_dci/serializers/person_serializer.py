@@ -145,3 +145,28 @@ class DCISearchResponseSerializer(serializers.Serializer):
                 ]
             }
         }
+    
+    @classmethod
+    def create_ack_response(cls, request_data, transaction_id):
+        """
+        Create a DCI async search acknowledgment response.
+        Should be returned immediately (HTTP 202) queueing the request.
+        """
+        return {
+            'signature': request_data.get('signature', ""),
+            'header': {
+                'version': '1.0.0',
+                'message_id': f"ack-{request_data['header']['message_id']}",
+                'message_ts': datetime.utcnow().isoformat() + 'Z',
+                'action': 'on-search',
+                'sender_id': request_data['header'].get('receiver_id', 'openimis'),
+                'sender_uri': request_data['header'].get('sender_uri', ''),
+                'receiver_id': request_data['header']['sender_id'],
+                'is_msg_encrypted': False,
+                'status': 'success'
+            },
+            'message': {
+                'transaction_id': transaction_id,
+                'search_response': []
+            }
+        }
