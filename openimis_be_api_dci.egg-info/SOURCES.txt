@@ -24,6 +24,7 @@ api_dci/tests/mixin/personTestMixin.py
 api_dci/tests/test/__init__.py
 api_dci/views/__init__.py
 api_dci/views/login_viewset.py
+api_dci/views/person_detail_view.py
 api_dci/views/person_viewset.py
 openimis_be_api_dci.egg-info/PKG-INFO
 openimis_be_api_dci.egg-info/SOURCES.txt
