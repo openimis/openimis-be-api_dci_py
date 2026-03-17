@@ -77,81 +77,75 @@ def sync_search(request):
         )
     
     validated_data = serializer.validated_data
-    message = validated_data['message']
-    transaction_id = message['transaction_id']
-
-    # Detect format: FR (search_request array) or IBR (direct search_criteria)
-    if 'search_request' in message:
-        # FR format
-        search_request_list = message['search_request']
-
-        # Validate search_request is not empty
-        if not search_request_list or len(search_request_list) == 0:
-            return Response(
-                {
-                    'header': {
-                        'status': 'error',
-                        'message': 'search_request array cannot be empty'
-                    }
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        search_request = search_request_list[0]
-        search_criteria = search_request['search_criteria']
-        format_type = 'fr'
-    else:
-        # IBR format
-        search_criteria = message['search_criteria']
-        format_type = 'ibr'
-
-    query = search_criteria['query']
-    query_type = search_criteria.get('query_type', 'sync')
-
-    # Build query for Individual model
+    
     try:
+        message_data = validated_data['message']
+        transaction_id = message_data['transaction_id']
+        search_requests = message_data.get('search_request', [])
+        
+        if not search_requests:
+            raise ValueError("No search_request provided")
+            
+        search_request = search_requests[0]
+        reference_id = search_request.get('reference_id', '')
+        search_criteria = search_request.get('search_criteria', {})
+        query_obj = search_criteria.get('query', {})
+        
+        # Navigate DCI expression structure: query -> value -> expression -> query
+        expression_q = query_obj.get('value', {}).get('expression', {}).get('query', {})
+        
+        # fallback to the flat query if expression structure is missing (for backward compatibility if needed)
+        if not expression_q:
+            expression_q = query_obj
+
+        # Build query for Individual model
         from individual.models import Individual
 
         # Start with all valid individuals
         queryset = Individual.objects.filter(is_deleted=False)
+        
+        # Find $and or $or arrays if they exist, or just use expression_q as a flat dict
+        filter_list = expression_q.get('$and', [])
+        if not filter_list and isinstance(expression_q, dict) and '$and' not in expression_q:
+            # Maybe flat
+            filter_list = [{k: {"$eq": v}} for k, v in expression_q.items() if k != '@type']
+        
+        # Extract filters
+        filters = {}
+        for item in filter_list:
+            if isinstance(item, dict):
+                for k, v in item.items():
+                    if isinstance(v, dict) and '$eq' in v:
+                        filters[k] = v['$eq']
+                    else:
+                        filters[k] = v
 
-        # Handle different query types
-        if query_type == 'expression':
-            # FR expression query - extract actual search fields
-            # Expression format: {"type": "...", "value": {"expression": {...}}}
-            if isinstance(query, dict) and 'value' in query:
-                query_value = query.get('value', {})
-                if 'expression' in query_value:
-                    query = query_value['expression']
-
-        # Apply search filters based on query content
-        if isinstance(query, dict):
-            # IBR simple format or extracted expression
-            if 'firstName' in query:
-                queryset = queryset.filter(first_name__icontains=query['firstName'])
-
-            if 'lastName' in query:
-                queryset = queryset.filter(last_name__icontains=query['lastName'])
-
-            if 'dob' in query:
-                queryset = queryset.filter(dob=query['dob'])
-
-            if 'gender' in query:
-                # Map DCI gender to OpenIMIS gender code
-                gender_map = {
-                    'Male': 'M',
-                    'Female': 'F',
-                    'Other': 'O'
-                }
-                gender_code = gender_map.get(query['gender'])
-                if gender_code:
-                    queryset = queryset.filter(gender__code=gender_code)
-
-            if 'phone' in query:
-                queryset = queryset.filter(phone__icontains=query['phone'])
-
-            if 'email' in query:
-                queryset = queryset.filter(email__icontains=query['email'])
+        # Apply search filters
+        if 'firstName' in filters:
+            queryset = queryset.filter(first_name__icontains=filters['firstName'])
+        
+        if 'lastName' in filters:
+            queryset = queryset.filter(last_name__icontains=filters['lastName'])
+        
+        if 'dob' in filters:
+            queryset = queryset.filter(dob=filters['dob'])
+        
+        if 'gender' in filters:
+            # Map DCI gender to OpenIMIS gender code
+            gender_map = {
+                'Male': 'M',
+                'Female': 'F',
+                'Other': 'O'
+            }
+            gender_code = gender_map.get(filters['gender'])
+            if gender_code:
+                queryset = queryset.filter(gender__code=gender_code)
+        
+        if 'phone' in filters:
+            queryset = queryset.filter(phone__icontains=filters['phone'])
+        
+        if 'email' in filters:
+            queryset = queryset.filter(email__icontains=filters['email'])
         
         # Convert to DCI Person format
         persons = [
@@ -186,7 +180,80 @@ def sync_search(request):
         request_data=request.data,
         persons=persons,
         transaction_id=transaction_id,
-        format_type=format_type
+        reference_id=reference_id
     )
 
     return Response(response_data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=['DCI Registry'],
+    summary='Async Search for Person records',
+    description='''
+    Asynchronously search for Person records following the DCI standard.
+
+    This endpoint returns an immediate 202 ACK response while queuing the search task.
+    Once completed, it POSTs the search array callback back to standard sender_uri.
+    ''',
+    request=DCISearchRequestSerializer,
+    responses={
+        202: DCISearchResponseSerializer,
+    }
+)
+@api_view(['POST'])
+@permission_classes([DCIPersonPermissions])
+def async_search(request):
+    """
+    DCI async search endpoint for Person records.
+    POST /api/dci/reg/search
+    """
+    # Validate request
+    serializer = DCISearchRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {
+                'header': {
+                    'status': 'error',
+                    'message': 'Invalid request format'
+                },
+                'errors': serializer.errors
+            },
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    validated_data = serializer.validated_data
+    
+    try:
+        message_data = validated_data['message']
+        transaction_id = message_data['transaction_id']
+        search_requests = message_data.get('search_request', [])
+        
+        if not search_requests:
+            raise ValueError("No search_request provided")
+            
+        # Queue background processing
+        from ..tasks import BackgroundSearchTask
+        task = BackgroundSearchTask(
+            request_data=request.data,
+            search_requests=search_requests
+        )
+        task.start()
+        
+    except Exception as e:
+        return Response(
+            {
+                'header': {
+                    'status': 'error',
+                    'message': str(e)
+                }
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+    # Return immediate ACK
+    response_data = DCISearchResponseSerializer.create_ack_response(
+        request_data=request.data,
+        transaction_id=transaction_id
+    )
+    
+    return Response(response_data, status=status.HTTP_202_ACCEPTED)

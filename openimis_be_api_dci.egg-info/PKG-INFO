@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: openimis-be-api_dci
-Version: 1.0.1
+Version: 1.0.0
 Summary: The openIMIS Backend DCI API reference module.
 Home-page: https://openimis.org/
 Author: openIMIS Team
@@ -74,6 +74,8 @@ This module implements the following SPDCI (Social Protection Digital Convergenc
 - `POST /api/api_dci/registry/search` - Asynchronous search (FR standard)
 - `POST /api/api_dci/registry/subscribe` - Event subscription
 - `POST /api/api_dci/registry/notify` - Event notifications
+- `POST /api/dci/reg/sync/search` - Synchronous search for Person records following DCI standard
+- `POST /api/dci/reg/search` - Asynchronous search for Person records following DCI standard
 
 ## Installation
 
@@ -174,29 +176,42 @@ Content-Type: application/json
 Authorization: Bearer <token>
 
 {
-  "signature": {
-    "created": "2026-02-20T23:54:00Z",
-    "expires": "2026-02-21T00:04:00Z"
-  },
+  "signature": "Signature: namespace=\"spdci\", kidId=\"...\", algorithm=\"ed25519\", headers=\"...\", signature=\"...\"",
   "header": {
     "version": "1.0.0",
     "message_id": "uuid-1234",
     "message_ts": "2026-02-20T23:54:00Z",
     "action": "search",
     "sender_id": "external-system",
-    "receiver_id": "openimis"
+    "receiver_id": "openimis",
+    "sender_uri": "https://callback.example.com",
+    "is_msg_encrypted": false
   },
   "message": {
     "transaction_id": "tx-5678",
-    "search_criteria": {
-      "reg_type": "person",
-      "query_type": "sync",
-      "query": {
-        "@type": "Person",
-        "firstName": "John",
-        "lastName": "Doe"
+    "search_request": [
+      {
+        "reference_id": "ref-111",
+        "timestamp": "2026-02-20T23:54:00Z",
+        "search_criteria": {
+          "reg_type": "person",
+          "query_type": "sync",
+          "query": {
+            "type": "ns:org:QueryType:expression",
+            "value": {
+              "expression": {
+                "query": {
+                  "$and": [
+                    {"firstName": {"$eq": "John"}},
+                    {"lastName": {"$eq": "Doe"}}
+                  ]
+                }
+              }
+            }
+          }
+        }
       }
-    }
+    ]
   }
 }
 ```
@@ -205,53 +220,43 @@ Authorization: Bearer <token>
 
 ```json
 {
-  "signature": "unsigned",
+  "signature": "Signature: namespace=\"spdci\", kidId=\"...\", algorithm=\"ed25519\", headers=\"...\", signature=\"...\"",
   "header": {
     "version": "1.0.0",
     "message_id": "response-uuid-1234",
     "message_ts": "2026-02-20T23:54:01.123456Z",
     "action": "on-search",
-    "sender_id": "openimis-server",
+    "status": "success",
+    "sender_id": "openimis",
     "receiver_id": "external-system",
-    "status": "success"
+    "sender_uri": "https://callback.example.com",
+    "total_count": 1,
+    "is_msg_encrypted": false,
+    "meta": {}
   },
   "message": {
     "transaction_id": "tx-5678",
-    "data": [
+    "search_response": [
       {
-        "identifier": [
-          {
-            "type": "openimis_uuid",
-            "value": "f6a0b402-0dc0-436e-a7bb-ec65dd4f011f",
-            "system": "openimis"
-          },
-          {
-            "type": "openimis_id",
-            "value": "12345",
-            "system": "openimis"
-          }
-        ],
-        "name": {
-          "given_name": "John",
-          "family_name": "Doe",
-          "full_name": "John Doe"
-        },
-        "birth_date": "1990-01-15T00:00:00Z",
-        "sex": "male",
-        "phone_number": ["+1234567890"],
-        "email": ["john.doe@example.com"],
-        "address": [
-          {
-            "type": "residential",
-            "city": "District 1",
-            "location_code": "D001"
-          }
-        ],
-        "registration_date": "2024-01-10T08:30:00Z",
-        "last_updated": "2026-02-15T14:20:00Z"
+        "reference_id": "ref-111",
+        "timestamp": "2026-02-20T23:54:01Z",
+        "status": "succ",
+        "status_reason_code": "succ",
+        "status_reason_message": "Success",
+        "registry_data": {
+          "data": [
+            {
+              "@type": "Person",
+              "id": "openimis:individual:12345",
+              "firstName": "John",
+              "lastName": "Doe",
+              "dob": "1990-01-15",
+              "gender": "Male"
+            }
+          ]
+        }
       }
-    ],
-    "count": 1
+    ]
   }
 }
 ```
