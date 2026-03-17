@@ -15,6 +15,7 @@ from ..serializers import (
 )
 from ..converters.person_converter import PersonConverter
 from ..permissions import DCIPersonPermissions
+from ..config import get_registry_type
 
 
 # Helper functions for SPDCI query processing
@@ -290,12 +291,14 @@ def sync_search(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     
-    # Build response
+    # Build response using configured registry type
+    registry_type = get_registry_type()
     response_data = DCISearchResponseSerializer.create_response(
         request_data=request.data,
         persons=persons,
         transaction_id=transaction_id,
-        reference_id=reference_id
+        reference_id=reference_id,
+        format_type=registry_type
     )
 
     return Response(response_data, status=status.HTTP_200_OK)

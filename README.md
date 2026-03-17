@@ -71,7 +71,27 @@ pip install openimis-be-api_dci
 }
 ```
 
-3. The module will be automatically loaded by OpenIMIS.
+3. **Configure the SPDCI registry type** (choose one):
+```bash
+# Option 1: Environment variable (recommended)
+export SPDCI_REGISTRY_TYPE=fr  # or 'sr', 'ibr'
+
+# Option 2: Add to your .env file
+SPDCI_REGISTRY_TYPE=fr
+
+# Option 3: Docker environment in docker-compose.yml
+environment:
+  - SPDCI_REGISTRY_TYPE=fr
+```
+
+**Available registry types:**
+- `fr` - Farmer Registry (SPDCI FR v1.0.0) - **Default**
+- `sr` - Social Registry (SPDCI SR v1.0.0)
+- `ibr` - Integrated Beneficiary Registry (SPDCI IBR v1.0.0)
+
+**Important:** One OpenIMIS instance = one registry type. To test different registry types, change the `SPDCI_REGISTRY_TYPE` environment variable and restart the backend.
+
+4. The module will be automatically loaded by OpenIMIS.
 
 ## API Documentation
 
@@ -343,7 +363,22 @@ cd spdci-compliance
 npm install
 ```
 
-2. Get authentication token:
+2. **Configure OpenIMIS for the registry type you want to test:**
+```bash
+# For FR (Farmer Registry) tests
+export SPDCI_REGISTRY_TYPE=fr
+docker restart openimis-dist_dkr-backend-1
+
+# For SR (Social Registry) tests
+export SPDCI_REGISTRY_TYPE=sr
+docker restart openimis-dist_dkr-backend-1
+
+# For IBR (Beneficiary Registry) tests
+export SPDCI_REGISTRY_TYPE=ibr
+docker restart openimis-dist_dkr-backend-1
+```
+
+3. Get authentication token:
 ```bash
 TOKEN=$(curl -s -X POST http://localhost/api/api_dci/login/ \
   -H "Content-Type: application/json" \
@@ -351,7 +386,7 @@ TOKEN=$(curl -s -X POST http://localhost/api/api_dci/login/ \
   | jq -r '.token')
 ```
 
-3. Run compliance tests:
+4. Run compliance tests:
 ```bash
 # Test FR (Farmer Registry) compliance
 export DCI_AUTH_TOKEN="$TOKEN"
@@ -363,7 +398,15 @@ npm run test:fr -- --tags '@req=FR-CORE-RG-SYNC-SEARCH-01'
 
 # Run all FR smoke tests
 npm run test:fr -- --tags '@smoke'
+
+# Test SR (Social Registry) - after configuring SPDCI_REGISTRY_TYPE=sr
+npm run test:social
+
+# Test IBR (Beneficiary Registry) - after configuring SPDCI_REGISTRY_TYPE=ibr
+npm run test:ibr
 ```
+
+**Note:** Each registry type must be tested separately. Change `SPDCI_REGISTRY_TYPE` and restart the backend between test suites.
 
 #### Docker-based Testing
 
