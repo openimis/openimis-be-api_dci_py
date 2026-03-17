@@ -17,6 +17,107 @@ from ..converters.person_converter import PersonConverter
 from ..permissions import DCIPersonPermissions
 
 
+# Helper functions for SPDCI query processing
+
+def _extract_filters_from_expression(expression_query):
+    """Extract filters from expression query format"""
+    filters = {}
+
+    # Find $and or $or arrays if they exist
+    filter_list = expression_query.get('$and', [])
+    if not filter_list and isinstance(expression_query, dict) and '$and' not in expression_query:
+        # Flat format
+        filter_list = [{k: {"$eq": v}} for k, v in expression_query.items() if k != '@type']
+
+    # Extract filters
+    for item in filter_list:
+        if isinstance(item, dict):
+            for k, v in item.items():
+                if isinstance(v, dict) and '$eq' in v:
+                    filters[k] = v['$eq']
+                else:
+                    filters[k] = v
+
+    return filters
+
+
+def _apply_filters(queryset, filters):
+    """Apply filters to Individual queryset"""
+    if 'firstName' in filters:
+        queryset = queryset.filter(first_name__icontains=filters['firstName'])
+
+    if 'lastName' in filters:
+        queryset = queryset.filter(last_name__icontains=filters['lastName'])
+
+    if 'dob' in filters:
+        queryset = queryset.filter(dob=filters['dob'])
+
+    if 'gender' in filters:
+        # Map DCI gender to OpenIMIS gender code
+        gender_map = {
+            'Male': 'M',
+            'Female': 'F',
+            'Other': 'O'
+        }
+        gender_code = gender_map.get(filters['gender'])
+        if gender_code:
+            queryset = queryset.filter(gender__code=gender_code)
+
+    if 'phone' in filters:
+        queryset = queryset.filter(phone__icontains=filters['phone'])
+
+    if 'email' in filters:
+        queryset = queryset.filter(email__icontains=filters['email'])
+
+    return queryset
+
+
+def _apply_predicate_expression(queryset, expression):
+    """Apply a single predicate expression to the queryset"""
+    attribute_name = expression.get('attribute_name', '')
+    operator = expression.get('operator', 'eq')
+    attribute_value = expression.get('attribute_value', '')
+
+    # Map SPDCI operators to Django ORM
+    # SPDCI operators: eq, gt, lt, ge, le, in
+    if not attribute_name or not attribute_value:
+        return queryset
+
+    # Map attribute names to Individual model fields
+    field_mapping = {
+        'age': None,  # Requires calculation
+        'first_name': 'first_name',
+        'last_name': 'last_name',
+        'firstName': 'first_name',
+        'lastName': 'last_name',
+        'dob': 'dob',
+        'gender': 'gender__code',
+        'phone': 'phone',
+        'email': 'email',
+    }
+
+    field = field_mapping.get(attribute_name, attribute_name)
+    if not field:
+        return queryset
+
+    # Apply operator
+    if operator == 'eq':
+        queryset = queryset.filter(**{field: attribute_value})
+    elif operator == 'gt':
+        queryset = queryset.filter(**{f'{field}__gt': attribute_value})
+    elif operator == 'lt':
+        queryset = queryset.filter(**{f'{field}__lt': attribute_value})
+    elif operator == 'ge':
+        queryset = queryset.filter(**{f'{field}__gte': attribute_value})
+    elif operator == 'le':
+        queryset = queryset.filter(**{f'{field}__lte': attribute_value})
+    elif operator == 'in':
+        if isinstance(attribute_value, list):
+            queryset = queryset.filter(**{f'{field}__in': attribute_value})
+
+    return queryset
+
+
 @extend_schema(
     tags=['DCI Registry'],
     summary='Search for Person records',
@@ -36,12 +137,12 @@ from ..permissions import DCIPersonPermissions
 def sync_search(request):
     """
     DCI sync/search endpoint for Person records.
-    
+
     POST /api/dci/reg/sync/search
-    
+
     This endpoint implements the DCI Registry Core API specification
     for searching Person records.
-    
+
     Request body follows DCI message format:
     {
         "signature": {...},
@@ -59,12 +160,18 @@ def sync_search(request):
             }
         }
     }
-    
+
     Response follows DCI message format with matching Person records.
     """
+    # Debug logging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.error(f"[DEBUG] Received request data: {request.data}")
+
     # Validate request
     serializer = DCISearchRequestSerializer(data=request.data)
     if not serializer.is_valid():
+        logger.error(f"[DEBUG] Validation errors: {serializer.errors}")
         return Response(
             {
                 'header': {
@@ -77,76 +184,84 @@ def sync_search(request):
         )
     
     validated_data = serializer.validated_data
-    
+
     try:
         message_data = validated_data['message']
         transaction_id = message_data['transaction_id']
         search_requests = message_data.get('search_request', [])
-        
+
         if not search_requests:
             raise ValueError("No search_request provided")
-            
+
         search_request = search_requests[0]
         reference_id = search_request.get('reference_id', '')
         search_criteria = search_request.get('search_criteria', {})
+        query_type = search_criteria.get('query_type', 'sync')
         query_obj = search_criteria.get('query', {})
-        
-        # Navigate DCI expression structure: query -> value -> expression -> query
-        expression_q = query_obj.get('value', {}).get('expression', {}).get('query', {})
-        
-        # fallback to the flat query if expression structure is missing (for backward compatibility if needed)
-        if not expression_q:
-            expression_q = query_obj
 
         # Build query for Individual model
         from individual.models import Individual
 
         # Start with all valid individuals
         queryset = Individual.objects.filter(is_deleted=False)
-        
-        # Find $and or $or arrays if they exist, or just use expression_q as a flat dict
-        filter_list = expression_q.get('$and', [])
-        if not filter_list and isinstance(expression_q, dict) and '$and' not in expression_q:
-            # Maybe flat
-            filter_list = [{k: {"$eq": v}} for k, v in expression_q.items() if k != '@type']
-        
-        # Extract filters
-        filters = {}
-        for item in filter_list:
-            if isinstance(item, dict):
-                for k, v in item.items():
-                    if isinstance(v, dict) and '$eq' in v:
-                        filters[k] = v['$eq']
-                    else:
-                        filters[k] = v
 
-        # Apply search filters
-        if 'firstName' in filters:
-            queryset = queryset.filter(first_name__icontains=filters['firstName'])
-        
-        if 'lastName' in filters:
-            queryset = queryset.filter(last_name__icontains=filters['lastName'])
-        
-        if 'dob' in filters:
-            queryset = queryset.filter(dob=filters['dob'])
-        
-        if 'gender' in filters:
-            # Map DCI gender to OpenIMIS gender code
-            gender_map = {
-                'Male': 'M',
-                'Female': 'F',
-                'Other': 'O'
-            }
-            gender_code = gender_map.get(filters['gender'])
-            if gender_code:
-                queryset = queryset.filter(gender__code=gender_code)
-        
-        if 'phone' in filters:
-            queryset = queryset.filter(phone__icontains=filters['phone'])
-        
-        if 'email' in filters:
-            queryset = queryset.filter(email__icontains=filters['email'])
-        
+        # Handle different SPDCI query types
+        if query_type == 'idtype-value':
+            # SPDCI FR Standard: Search by identifier type and value
+            # Format: {"type": "FARMER_ID", "value": "FARMER-TEST-001"}
+            id_type = query_obj.get('type', '')
+            id_value = query_obj.get('value', '')
+
+            if id_type and id_value:
+                # Map SPDCI identifier types to OpenIMIS fields
+                if id_type in ['FARMER_ID', 'UIN', 'NIN']:
+                    # Search by UUID or other identifiers
+                    queryset = queryset.filter(uuid__icontains=id_value)
+                else:
+                    # Default: search in UUID
+                    queryset = queryset.filter(uuid__icontains=id_value)
+
+        elif query_type == 'predicate':
+            # SPDCI FR Standard: Search by predicate conditions
+            # Format: [{"seq_num": 1, "expression1": {...}, "condition": "and", "expression2": {...}}]
+            if isinstance(query_obj, list):
+                for predicate in query_obj:
+                    expr1 = predicate.get('expression1', {})
+                    condition = predicate.get('condition', 'and')
+                    expr2 = predicate.get('expression2', {})
+
+                    # Apply first expression
+                    queryset = _apply_predicate_expression(queryset, expr1)
+                    # Apply second expression if present
+                    if expr2:
+                        queryset = _apply_predicate_expression(queryset, expr2)
+
+        elif query_type == 'expression':
+            # SPDCI FR Standard: Expression query (implementation-specific)
+            # Format: {"type": "...", "value": {"expression": {...}}}
+            expression_value = query_obj.get('value', {})
+            expression_query = expression_value.get('expression', {})
+
+            # Apply expression filters (flexible format)
+            filters = _extract_filters_from_expression(expression_query)
+            queryset = _apply_filters(queryset, filters)
+
+        elif query_type == 'sync' or query_type == 'async':
+            # Legacy OpenIMIS format (backward compatibility)
+            # Navigate DCI expression structure: query -> value -> expression -> query
+            expression_q = query_obj.get('value', {}).get('expression', {}).get('query', {})
+
+            # fallback to the flat query if expression structure is missing
+            if not expression_q:
+                expression_q = query_obj
+
+            # Extract and apply filters
+            filters = _extract_filters_from_expression(expression_q)
+            queryset = _apply_filters(queryset, filters)
+
+        else:
+            raise ValueError(f"Unsupported query_type: {query_type}")
+
         # Convert to DCI Person format
         persons = [
             PersonConverter.individual_to_dci_person(individual)
