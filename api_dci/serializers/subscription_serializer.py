@@ -81,8 +81,8 @@ class DCINotifyRequestItemSerializer(serializers.Serializer):
 class DCINotifyMessageSerializer(serializers.Serializer):
     """DCI notify request message (sent FROM registry TO subscriber)"""
     transaction_id = serializers.CharField(max_length=255)
-    correlation_id = serializers.CharField(max_length=255)
-    notify_request = DCINotifyRequestItemSerializer(many=True)
+    correlation_id = serializers.CharField(max_length=255, required=False)
+    notify_request = DCINotifyRequestItemSerializer(many=True, required=False)
 
 
 class DCINotifyRequestSerializer(serializers.Serializer):
@@ -128,8 +128,47 @@ class DCISubscribeResponseSerializer(serializers.Serializer):
                 'ack_status': 'ACK',
                 'timestamp': datetime.utcnow().isoformat() + 'Z',
                 'correlation_id': transaction_id,
-                'error': None
             }
+        }
+
+
+class DCINotifyResponseSerializer(serializers.Serializer):
+    """Notify callback response serializer - Returns ACK per SPDCI FR spec"""
+
+    @classmethod
+    def create_ack_response(cls, request_data, transaction_id):
+        """
+        Create a DCI notify ACK response
+
+        Args:
+            request_data: Original notify request data dict
+            transaction_id: Transaction ID from request
+
+        Returns:
+            dict: DCI ACK response formatted per SPDCI FR spec
+        """
+        message = {
+            'ack_status': 'ACK',
+            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'correlation_id': transaction_id,
+        }
+
+        # Only include error field if there's an error (omit when successful)
+        # This matches SPDCI OpenAPI schema expectations
+
+        return {
+            'signature': request_data.get('signature', ""),
+            'header': {
+                'version': '1.0.0',
+                'message_id': f"ack-{request_data['header']['message_id']}",
+                'message_ts': datetime.utcnow().isoformat() + 'Z',
+                'action': 'on-notify',
+                'status': 'succ',
+                'sender_id': request_data['header'].get('receiver_id', 'openimis'),
+                'receiver_id': request_data['header']['sender_id'],
+                'is_msg_encrypted': request_data['header'].get('is_msg_encrypted', False),
+            },
+            'message': message
         }
 
 
@@ -164,7 +203,6 @@ class DCIUnsubscribeResponseSerializer(serializers.Serializer):
                 'ack_status': 'ACK',
                 'timestamp': datetime.utcnow().isoformat() + 'Z',
                 'correlation_id': transaction_id,
-                'error': None
             }
         }
 

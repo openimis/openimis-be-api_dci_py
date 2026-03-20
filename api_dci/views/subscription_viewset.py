@@ -7,9 +7,13 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
+from django.db import transaction
+from django.db.models import F
 import uuid
 import logging
 
+from core.datetimes import ad_datetime
+from core.models import User
 from ..serializers import (
     DCISubscribeRequestSerializer,
     DCISubscribeResponseSerializer,
@@ -217,11 +221,22 @@ def unsubscribe(request):
             subscription_id = unsub_request.get('subscription_id')
 
             try:
-                # Find and deactivate subscription
-                subscription = DCISubscription.objects.get(
+                # Check if subscription exists and get current status
+                subscription = DCISubscription.objects.filter(
                     subscription_code=subscription_id,
                     is_deleted=False
-                )
+                ).first()
+
+                if not subscription:
+                    logger.warning(
+                        f"[DCI Unsubscribe] Subscription {subscription_id} not found"
+                    )
+                    unsubscribe_results.append((
+                        reference_id,
+                        False,
+                        f"Subscription {subscription_id} not found"
+                    ))
+                    continue
 
                 # Check if already inactive
                 if subscription.status == DCISubscription.SubscriptionStatus.INACTIVE:
@@ -235,13 +250,33 @@ def unsubscribe(request):
                     )
                     continue
 
-                # Deactivate subscription
-                subscription.status = DCISubscription.SubscriptionStatus.INACTIVE
-                subscription.save(username=request.user.username if hasattr(request.user, 'username') else 'Admin')
+                # Deactivate subscription using QuerySet.update() for atomic operation
+                # Note: Using .update() instead of .save() to avoid HistoryModel cache issues
+                user = User.objects.filter(
+                    username=request.user.username if hasattr(request.user, 'username') else 'Admin'
+                ).first()
+                if not user:
+                    user = User.objects.filter(i_user_id=1).first()
 
-                logger.info(
-                    f"[DCI Unsubscribe] Deactivated subscription {subscription_id}"
+                updated_count = DCISubscription.objects.filter(
+                    subscription_code=subscription_id,
+                    is_deleted=False,
+                    status=DCISubscription.SubscriptionStatus.ACTIVE  # Only update if still active
+                ).update(
+                    status=DCISubscription.SubscriptionStatus.INACTIVE,
+                    version=F('version') + 1,
+                    date_updated=ad_datetime.AdDatetime.now(),
+                    user_updated=user
                 )
+
+                if updated_count > 0:
+                    logger.info(
+                        f"[DCI Unsubscribe] Deactivated subscription {subscription_id}"
+                    )
+                else:
+                    logger.warning(
+                        f"[DCI Unsubscribe] Subscription {subscription_id} was not updated (possibly already inactive)"
+                    )
 
                 unsubscribe_results.append((
                     reference_id,
@@ -249,14 +284,15 @@ def unsubscribe(request):
                     f"Subscription {subscription_id} successfully unsubscribed"
                 ))
 
-            except DCISubscription.DoesNotExist:
-                logger.warning(
-                    f"[DCI Unsubscribe] Subscription {subscription_id} not found"
+            except Exception as e:
+                logger.error(
+                    f"[DCI Unsubscribe] Error processing subscription {subscription_id}: {e}",
+                    exc_info=True
                 )
                 unsubscribe_results.append((
                     reference_id,
                     False,
-                    f"Subscription {subscription_id} not found"
+                    f"Error unsubscribing {subscription_id}: {str(e)}"
                 ))
 
     except ValueError as e:

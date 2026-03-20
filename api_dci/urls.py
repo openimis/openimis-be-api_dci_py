@@ -6,7 +6,7 @@ Routes for DCI Registry Core API endpoints.
 from django.urls import path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
-from .views import sync_search, async_search, person_detail, DCILoginViewSet, subscribe, unsubscribe
+from .views import sync_search, async_search, person_detail, DCILoginViewSet, subscribe, unsubscribe, notify
 
 app_name = 'api_dci'
 
@@ -22,6 +22,7 @@ urlpatterns = [
     # DCI Registry Core API endpoints - Subscription operations
     path('registry/subscribe', subscribe, name='subscribe'),
     path('registry/unsubscribe', unsubscribe, name='unsubscribe'),
+    path('registry/notify', notify, name='notify'),
 
     # OpenAPI documentation endpoints
     path('docs/schema/', SpectacularAPIView.as_view(), name='schema'),

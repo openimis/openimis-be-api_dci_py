@@ -15,6 +15,7 @@ from .subscription_serializer import (
     DCIUnsubscribeRequestSerializer,
     DCIUnsubscribeResponseSerializer,
     DCINotifyRequestSerializer,
+    DCINotifyResponseSerializer,
 )
 
 __all__ = [
@@ -31,4 +32,5 @@ __all__ = [
     'DCIUnsubscribeRequestSerializer',
     'DCIUnsubscribeResponseSerializer',
     'DCINotifyRequestSerializer',
+    'DCINotifyResponseSerializer',
 ]

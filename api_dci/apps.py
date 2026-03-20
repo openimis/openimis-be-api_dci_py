@@ -16,4 +16,6 @@ class ApiDciConfig(AppConfig):
         """
         Perform initialization when Django starts.
         """
-        pass
+        # Import and bind subscription signals
+        from .signals import bind_service_signals
+        bind_service_signals()

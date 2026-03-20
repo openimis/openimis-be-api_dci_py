@@ -1033,6 +1033,230 @@
           }
         ]
       }
+    },
+    "/api/api_dci/registry/notify": {
+      "post": {
+        "summary": "Receive registry event notifications (SPDCI FR v1.0.0 Certified)",
+        "deprecated": false,
+        "description": "Receive notifications from other registries when subscribed to their events.\n\n**✅ SPDCI FR v1.0.0 Compliance:**\n- Test ID: FR-CORE-RG-NOTIFY-01\n- Status: PASSED\n- Validated: March 2026\n\n**Callback Receiver Endpoint**\n\nThis endpoint is called BY external registries to notify us about:\n- **REGISTER**: New person/farmer/member registered\n- **UPDATE**: Existing record updated  \n- **DEREGISTER**: Record deactivated/deleted\n\nWhen we subscribe to another registry (providing our sender_uri), that registry will POST notify requests to this endpoint.\n\nThe notification contains the full resource record in SPDCI format.\n\n**Response:** Returns ACK to confirm receipt of notification.\n",
+        "tags": [
+          "DCI Registry"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["header", "message"],
+                "properties": {
+                  "signature": {
+                    "type": "string",
+                    "description": "Digital signature (optional)"
+                  },
+                  "header": {
+                    "type": "object",
+                    "required": ["version", "message_id", "message_ts", "action", "sender_id", "receiver_id"],
+                    "properties": {
+                      "version": { "type": "string", "example": "1.0.0" },
+                      "message_id": { "type": "string", "example": "msg-notify-001" },
+                      "message_ts": { "type": "string", "format": "date-time" },
+                      "action": { "type": "string", "enum": ["notify"] },
+                      "sender_id": { "type": "string", "description": "External registry ID" },
+                      "receiver_id": { "type": "string", "description": "Our registry ID" },
+                      "is_msg_encrypted": { "type": "boolean", "default": false }
+                    }
+                  },
+                  "message": {
+                    "type": "object",
+                    "required": ["transaction_id"],
+                    "properties": {
+                      "transaction_id": { "type": "string" },
+                      "correlation_id": { "type": "string" },
+                      "notify_request": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "reference_id": { "type": "string" },
+                            "timestamp": { "type": "string", "format": "date-time" },
+                            "subscription_id": { "type": "string" },
+                            "data": {
+                              "type": "object",
+                              "properties": {
+                                "version": { "type": "string" },
+                                "reg_type": { "type": "string", "enum": ["FR", "SR", "IBR"] },
+                                "reg_record_type": { "type": "string" },
+                                "event_type": { "type": "string", "enum": ["REGISTER", "UPDATE", "DEREGISTER"] },
+                                "reg_record": { "type": "object" }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "examples": {
+                "registerEvent": {
+                  "value": {
+                    "signature": "",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "msg-notify-001",
+                      "message_ts": "2026-03-17T10:00:00Z",
+                      "action": "notify",
+                      "sender_id": "external-registry",
+                      "receiver_id": "openimis",
+                      "is_msg_encrypted": false
+                    },
+                    "message": {
+                      "transaction_id": "txn-notify-001",
+                      "correlation_id": "txn-subscribe-original",
+                      "notify_request": [
+                        {
+                          "reference_id": "ref-001",
+                          "timestamp": "2026-03-17T10:00:00Z",
+                          "subscription_id": "sub-abc123def456",
+                          "data": {
+                            "version": "1.0.0",
+                            "reg_type": "FR",
+                            "reg_record_type": "Person",
+                            "event_type": "REGISTER",
+                            "reg_record": {
+                              "id": "person-12345",
+                              "first_name": "John",
+                              "last_name": "Doe",
+                              "dob": "1990-01-15"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "REGISTER event notification"
+                },
+                "updateEvent": {
+                  "value": {
+                    "signature": "",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "msg-notify-002",
+                      "message_ts": "2026-03-17T11:00:00Z",
+                      "action": "notify",
+                      "sender_id": "external-registry",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-notify-002",
+                      "notify_request": [
+                        {
+                          "reference_id": "ref-002",
+                          "timestamp": "2026-03-17T11:00:00Z",
+                          "subscription_id": "sub-abc123def456",
+                          "data": {
+                            "version": "1.0.0",
+                            "reg_type": "FR",
+                            "reg_record_type": "Person",
+                            "event_type": "UPDATE",
+                            "reg_record": {
+                              "id": "person-12345",
+                              "first_name": "John",
+                              "last_name": "Doe-Smith",
+                              "dob": "1990-01-15"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "UPDATE event notification"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Notification received and acknowledged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "signature": { "type": "string" },
+                    "header": {
+                      "type": "object",
+                      "properties": {
+                        "version": { "type": "string" },
+                        "message_id": { "type": "string" },
+                        "message_ts": { "type": "string" },
+                        "action": { "type": "string", "enum": ["on-notify"] },
+                        "status": { "type": "string", "enum": ["succ"] },
+                        "sender_id": { "type": "string" },
+                        "receiver_id": { "type": "string" },
+                        "is_msg_encrypted": { "type": "boolean" }
+                      }
+                    },
+                    "message": {
+                      "type": "object",
+                      "properties": {
+                        "ack_status": { "type": "string", "enum": ["ACK"] },
+                        "timestamp": { "type": "string" },
+                        "correlation_id": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "signature": "",
+                  "header": {
+                    "version": "1.0.0",
+                    "message_id": "ack-msg-notify-001",
+                    "message_ts": "2026-03-17T10:00:01Z",
+                    "action": "on-notify",
+                    "status": "succ",
+                    "sender_id": "openimis",
+                    "receiver_id": "external-registry",
+                    "is_msg_encrypted": false
+                  },
+                  "message": {
+                    "ack_status": "ACK",
+                    "timestamp": "2026-03-17T10:00:01Z",
+                    "correlation_id": "txn-notify-001"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid notification format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "header": {
+                      "type": "object",
+                      "properties": {
+                        "status": { "type": "string", "enum": ["error"] },
+                        "message": { "type": "string" }
+                      }
+                    },
+                    "errors": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
