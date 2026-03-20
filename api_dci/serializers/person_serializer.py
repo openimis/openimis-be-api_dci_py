@@ -20,7 +20,7 @@ class DCIHeaderSerializer(serializers.Serializer):
     message_ts = serializers.DateTimeField()
     action = serializers.CharField(max_length=50)
     sender_id = serializers.CharField(max_length=255)
-    sender_uri = serializers.URLField(required=False)
+    sender_uri = serializers.CharField(max_length=255, required=False)
     receiver_id = serializers.CharField(max_length=255, required=False)
     total_count = serializers.IntegerField(required=False)
     is_msg_encrypted = serializers.BooleanField(default=False, required=False)
