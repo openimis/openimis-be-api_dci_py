@@ -20,7 +20,7 @@ class DCIHeaderSerializer(serializers.Serializer):
     message_ts = serializers.DateTimeField()
     action = serializers.CharField(max_length=50)
     sender_id = serializers.CharField(max_length=255)
-    sender_uri = serializers.URLField(required=False)
+    sender_uri = serializers.CharField(max_length=255, required=False)
     receiver_id = serializers.CharField(max_length=255, required=False)
     total_count = serializers.IntegerField(required=False)
     is_msg_encrypted = serializers.BooleanField(default=False, required=False)
@@ -77,12 +77,6 @@ class DCISearchRequestSerializer(serializers.Serializer):
     signature = serializers.CharField(required=False, allow_blank=True)
     header = DCIHeaderSerializer()
     message = DCISearchMessageSerializer()
-
-    def validate_signature(self, value):
-        """Validate DCI signature string format."""
-        if value and not value.startswith('Signature: '):
-            raise serializers.ValidationError("Signature must start with 'Signature: '")
-        return value
 
 
 class DCISearchResponseMessageSerializer(serializers.Serializer):
