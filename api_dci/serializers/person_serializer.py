@@ -45,8 +45,8 @@ class DCIPersonSerializer(serializers.Serializer):
 
 class DCISearchCriteriaSerializer(serializers.Serializer):
     """DCI search criteria"""
+    reg_type = serializers.CharField(max_length=50, required=False)
     version = serializers.CharField(max_length=50, required=False)
-    reg_type = serializers.CharField(max_length=100)
     reg_record_type = serializers.CharField(max_length=255, required=False)
     query_type = serializers.CharField(max_length=50)
     query = serializers.DictField()
@@ -64,9 +64,12 @@ class DCISearchRequestItemSerializer(serializers.Serializer):
 
 
 class DCISearchMessageSerializer(serializers.Serializer):
-    """DCI search request message"""
+    """DCI search request message - supports both IBR and FR formats"""
     transaction_id = serializers.CharField(max_length=255)
-    search_request = DCISearchRequestItemSerializer(many=True)
+    # IBR format: direct search_criteria
+    search_criteria = DCISearchCriteriaSerializer(required=False)
+    # FR format: array of search_request items
+    search_request = DCISearchRequestItemSerializer(many=True, required=False)
 
 
 class DCISearchRequestSerializer(serializers.Serializer):
@@ -74,14 +77,25 @@ class DCISearchRequestSerializer(serializers.Serializer):
     Complete DCI search request
     POST /api/dci/reg/sync/search
     """
-    signature = serializers.CharField(required=False, allow_blank=True)
+    signature = serializers.JSONField(required=False, allow_null=True)
     header = DCIHeaderSerializer()
     message = DCISearchMessageSerializer()
+
+    def validate_signature(self, value):
+        """Validate DCI signature format (string or object)."""
+        # Accept empty, null, object, or any string (including stubs like 'unsigned-stub')
+        if value is None or value == {} or value == "":
+            return ""
+        # Accept any string value for flexibility (stubs, unsigned, etc.)
+        return value
 
 
 class DCISearchResponseMessageSerializer(serializers.Serializer):
     """DCI search response message"""
     transaction_id = serializers.CharField(max_length=255)
+    data = DCIPersonSerializer(many=True, required=False)  # IBR format
+    count = serializers.IntegerField(required=False)  # IBR format
+    correlation_id = serializers.CharField(max_length=255, required=False)  # FR format
     search_response = serializers.ListField(child=serializers.DictField())
 
 
@@ -90,55 +104,110 @@ class DCISearchResponseSerializer(serializers.Serializer):
     Complete DCI search response
     Response for POST /api/dci/reg/sync/search
     """
-    signature = serializers.CharField(required=False, allow_blank=True)
+    signature = serializers.JSONField(required=False, allow_null=True)
     header = DCIHeaderSerializer()
     message = DCISearchResponseMessageSerializer()
-    
+
     @classmethod
-    def create_response(cls, request_data, persons, transaction_id, reference_id=""):
+    def create_response(cls, request_data, persons, transaction_id, reference_id="", format_type='fr'):
         """
         Create a DCI search response from request and results
-        
+
         Args:
             request_data: Original request data dict
             persons: List of DCI Person dicts
             transaction_id: Transaction ID from request
             reference_id: Reference ID to tie response to request
-            
+            format_type: 'fr', 'sr', or 'ibr' - determines response format per SPDCI spec
+
         Returns:
-            dict: DCI response data
+            dict: DCI response data formatted per specified registry type
         """
-        return {
-            'signature': request_data.get('signature', ""),
-            'header': {
-                'version': '1.0.0',
-                'message_id': f"response-{request_data['header']['message_id']}",
-                'message_ts': datetime.utcnow().isoformat() + 'Z',
-                'action': 'on-search',
-                'sender_id': request_data['header'].get('receiver_id', 'openimis'),
-                'sender_uri': request_data['header'].get('sender_uri', ''),
-                'receiver_id': request_data['header']['sender_id'],
-                'total_count': len(persons),
-                'is_msg_encrypted': request_data['header'].get('is_msg_encrypted', False),
-                'meta': request_data['header'].get('meta', {}),
-                'status': 'success'
-            },
-            'message': {
-                'transaction_id': transaction_id,
-                'search_response': [
-                    {
-                        "reference_id": reference_id,
-                        "timestamp": datetime.utcnow().isoformat() + 'Z',
-                        "status": "succ",
-                        "status_reason_code": "succ",
-                        "status_reason_message": "Success",
-                        "registry_data": {
-                            "data": persons
-                        }
-                    }
-                ]
-            }
+        # Common header structure
+        header = {
+            'version': '1.0.0',
+            'message_id': f"response-{request_data['header']['message_id']}",
+            'message_ts': datetime.utcnow().isoformat() + 'Z',
+            'action': 'on-search',
+            'sender_id': request_data['header'].get('receiver_id', 'openimis'),
+            'sender_uri': request_data['header'].get('sender_uri', ''),
+            'receiver_id': request_data['header']['sender_id'],
+            'total_count': len(persons),
+            'is_msg_encrypted': request_data['header'].get('is_msg_encrypted', False),
+            'meta': request_data['header'].get('meta', {})
         }
+
+        # FR (Farmer Registry) format - SPDCI FR spec
+        if format_type == 'fr':
+            header['status'] = 'succ'
+            return {
+                'signature': request_data.get('signature', ""),
+                'header': header,
+                'message': {
+                    'transaction_id': transaction_id,
+                    'correlation_id': transaction_id,
+                    'search_response': [
+                        {
+                            "reference_id": reference_id,
+                            "timestamp": datetime.utcnow().isoformat() + 'Z',
+                            "status": "succ",
+                            "status_reason_message": "Success",
+                            "data": {
+                                "version": "1.0.0",
+                                "reg_type": "ns:org:RegistryType:FR",
+                                "reg_record_type": "Farmer",
+                                "reg_records": persons
+                            }
+                        }
+                    ]
+                }
+            }
+
+        # SR (Social Registry) format - SPDCI SR spec
+        elif format_type == 'sr':
+            header['status'] = 'success'
+            return {
+                'signature': request_data.get('signature', ""),
+                'header': header,
+                'message': {
+                    'transaction_id': transaction_id,
+                    'search_response': [
+                        {
+                            "reference_id": reference_id,
+                            "timestamp": datetime.utcnow().isoformat() + 'Z',
+                            "status": "succ",
+                            "status_reason_code": "succ",
+                            "status_reason_message": "Success",
+                            "registry_data": {
+                                "data": persons
+                            }
+                        }
+                    ]
+                }
+            }
+
+        # IBR (ID & Beneficiary Registry) or default format
+        else:
+            header['status'] = 'success'
+            return {
+                'signature': request_data.get('signature', ""),
+                'header': header,
+                'message': {
+                    'transaction_id': transaction_id,
+                    'search_response': [
+                        {
+                            "reference_id": reference_id,
+                            "timestamp": datetime.utcnow().isoformat() + 'Z',
+                            "status": "succ",
+                            "status_reason_code": "succ",
+                            "status_reason_message": "Success",
+                            "registry_data": {
+                                "data": persons
+                            }
+                        }
+                    ]
+                }
+            }
     
     @classmethod
     def create_ack_response(cls, request_data, transaction_id):

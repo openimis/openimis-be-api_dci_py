@@ -1,0 +1,1488 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "OpenIMIS DCI API",
+    "description": "DCI (Digital Convergence Initiative) compliant API for Person registry operations.\n\nThis API implements the DCI Registry Core API specification for searching Person records.\nSupports both sync and async search operations following the DCI message format.\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "OpenIMIS Support",
+      "url": "https://openimis.org"
+    }
+  },
+  "tags": [
+    {
+      "name": "Authentication"
+    },
+    {
+      "name": "DCI Registry"
+    }
+  ],
+  "paths": {
+    "/api/api_dci/login/": {
+      "post": {
+        "summary": "Authenticate and obtain access token",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Authentication"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "example": "admin"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "admin123"
+                  }
+                }
+              },
+              "example": {
+                "username": "Admin",
+                "password": "admin123"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Authentication successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string",
+                      "example": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/reg/search": {
+      "post": {
+        "summary": "Asynchronous Person search",
+        "deprecated": false,
+        "description": "Asynchronously search for Person records following the DCI standard.\nReturns immediate 202 ACK response while queuing the search task.\nResults will be posted back to sender_uri when ready.\n",
+        "tags": [
+          "DCI Registry"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DCISearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Search request accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DCIAckResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/api_dci/registry/subscribe": {
+      "post": {
+        "summary": "Event Subscription (SPDCI FR v1.0.0 Certified)",
+        "deprecated": false,
+        "description": "Search for Person records following the SPDCI Farmer Registry (FR) v1.0.0 standard.\n\n**✅ SPDCI FR v1.0.0 Compliance:**\n- Test ID: FR-CORE-RG-SYNC-SEARCH-01\n- Status: PASSED (7/7 steps)\n- Validated: March 2026\n\n**Supported Query Types:**\n- `idtype-value` - Search by identifier (FARMER_ID, UIN, NIN)\n- `expression` - Free-form expression queries\n- `predicate` - Structured predicate queries with operators (eq, gt, lt, ge, le, in)\n- `sync` / `async` - Legacy OpenIMIS format (backward compatibility)\n\n**Response Format:** Returns immediate response with matching Person records in FR format (with correlation_id and reg_records).\n",
+        "tags": [
+          "DCI Registry"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DCISearchRequest"
+              },
+              "examples": {
+                "searchAll": {
+                  "value": {
+                    "signature": "",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "msg-subscribe-001",
+                      "message_ts": "2026-03-17T10:00:00Z",
+                      "action": "subscribe",
+                      "sender_id": "test-system",
+                      "receiver_id": "openimis",
+                      "sender_uri": "http://test-system.com/callback",
+                      "is_msg_encrypted": false
+                    },
+                    "message": {
+                      "transaction_id": "txn-subscribe-001",
+                      "subscribe_request": [
+                        {
+                          "reference_id": "ref-001",
+                          "timestamp": "2026-03-17T10:00:00Z",
+                          "event_type": "ALL",
+                          "filter": {
+                            "idtype-value": {
+                              "id_type": "NATIONAL_ID",
+                              "id_value": "123456789"
+                            }
+                          },
+                          "expiry": "2026-12-31T23:59:59Z"
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "Search all persons"
+                },
+                "searchByName": {
+                  "value": {
+                    "signature": {},
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-002",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-12346",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-002",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "reg_type": "person",
+                            "query_type": "sync",
+                            "query": {
+                              "@type": "Person",
+                              "firstName": "John",
+                              "lastName": "Doe"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "Search by first and last name"
+                },
+                "searchAdvanced": {
+                  "value": {
+                    "signature": {},
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-003",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-12347",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-003",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "reg_type": "person",
+                            "query_type": "sync",
+                            "query": {
+                              "@type": "Person",
+                              "firstName": "Jane",
+                              "lastName": "Smith",
+                              "gender": "Female",
+                              "email": "jane@example.com"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "Advanced search with multiple criteria"
+                },
+                "spdciIdTypeValue": {
+                  "value": {
+                    "signature": "unsigned-stub",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-idtype-001",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-idtype-001",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-idtype-001",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "query_type": "idtype-value",
+                            "query": {
+                              "type": "FARMER_ID",
+                              "value": "FARMER-TEST-001"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "SPDCI FR: Search by identifier (idtype-value)"
+                },
+                "spdciPredicate": {
+                  "value": {
+                    "signature": "unsigned-stub",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-predicate-001",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-predicate-001",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-predicate-001",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "query_type": "predicate",
+                            "query": [
+                              {
+                                "seq_num": 1,
+                                "expression1": {
+                                  "attribute_name": "firstName",
+                                  "operator": "eq",
+                                  "attribute_value": "John"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "SPDCI FR: Search by predicate conditions"
+                },
+                "spdciExpression": {
+                  "value": {
+                    "signature": "unsigned-stub",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-expression-001",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-expression-001",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-expression-001",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "query_type": "expression",
+                            "query": {
+                              "type": "ns:org:QueryType:expression",
+                              "value": {
+                                "expression": {
+                                  "firstName": "John",
+                                  "lastName": "Doe"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "SPDCI FR: Search by expression query"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Search successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DCISearchResponse"
+                },
+                "example": {
+                  "signature": "",
+                  "header": {
+                    "version": "1.0.0",
+                    "message_id": "response-test-fr-001",
+                    "message_ts": "2026-03-17T15:00:01Z",
+                    "action": "on-search",
+                    "sender_id": "openimis",
+                    "receiver_id": "test-sender",
+                    "total_count": 2,
+                    "status": "succ"
+                  },
+                  "message": {
+                    "transaction_id": "txn-12345",
+                    "correlation_id": "txn-12345",
+                    "search_response": [
+                      {
+                        "reference_id": "ref-001",
+                        "timestamp": "2026-03-17T15:00:01Z",
+                        "status": "succ",
+                        "status_reason_message": "Success",
+                        "data": {
+                          "version": "1.0.0",
+                          "reg_type": "ns:org:RegistryType:FR",
+                          "reg_record_type": "Farmer",
+                          "reg_records": [
+                            {
+                              "@type": "Person",
+                              "id": "12345",
+                              "firstName": "John",
+                              "lastName": "Doe",
+                              "dob": "1990-01-15",
+                              "gender": "Male"
+                            },
+                            {
+                              "@type": "Person",
+                              "id": "12346",
+                              "firstName": "Jane",
+                              "lastName": "Smith",
+                              "dob": "1985-06-20",
+                              "gender": "Female"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Invalid request format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/api_dci/registry/unsubscribe": {
+      "post": {
+        "summary": "Event Unsubscription (SPDCI FR v1.0.0 Certified)",
+        "deprecated": false,
+        "description": "Search for Person records following the SPDCI Farmer Registry (FR) v1.0.0 standard.\n\n**✅ SPDCI FR v1.0.0 Compliance:**\n- Test ID: FR-CORE-RG-SYNC-SEARCH-01\n- Status: PASSED (7/7 steps)\n- Validated: March 2026\n\n**Supported Query Types:**\n- `idtype-value` - Search by identifier (FARMER_ID, UIN, NIN)\n- `expression` - Free-form expression queries\n- `predicate` - Structured predicate queries with operators (eq, gt, lt, ge, le, in)\n- `sync` / `async` - Legacy OpenIMIS format (backward compatibility)\n\n**Response Format:** Returns immediate response with matching Person records in FR format (with correlation_id and reg_records).\n",
+        "tags": [
+          "DCI Registry"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DCISearchRequest"
+              },
+              "examples": {
+                "searchAll": {
+                  "value": {
+                    "signature": "",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "msg-unsubscribe-001",
+                      "message_ts": "2026-03-17T10:00:00Z",
+                      "action": "unsubscribe",
+                      "sender_id": "test-system",
+                      "receiver_id": "openimis",
+                      "is_msg_encrypted": false
+                    },
+                    "message": {
+                      "transaction_id": "txn-unsubscribe-001",
+                      "unsubscribe_request": [
+                        {
+                          "reference_id": "ref-001",
+                          "timestamp": "2026-03-17T10:00:00Z",
+                          "subscription_id": "sub-XXXXXXXXXXXXXXXX"
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "Search all persons"
+                },
+                "searchByName": {
+                  "value": {
+                    "signature": {},
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-002",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-12346",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-002",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "reg_type": "person",
+                            "query_type": "sync",
+                            "query": {
+                              "@type": "Person",
+                              "firstName": "John",
+                              "lastName": "Doe"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "Search by first and last name"
+                },
+                "searchAdvanced": {
+                  "value": {
+                    "signature": {},
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-003",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-12347",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-003",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "reg_type": "person",
+                            "query_type": "sync",
+                            "query": {
+                              "@type": "Person",
+                              "firstName": "Jane",
+                              "lastName": "Smith",
+                              "gender": "Female",
+                              "email": "jane@example.com"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "Advanced search with multiple criteria"
+                },
+                "spdciIdTypeValue": {
+                  "value": {
+                    "signature": "unsigned-stub",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-idtype-001",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-idtype-001",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-idtype-001",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "query_type": "idtype-value",
+                            "query": {
+                              "type": "FARMER_ID",
+                              "value": "FARMER-TEST-001"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "SPDCI FR: Search by identifier (idtype-value)"
+                },
+                "spdciPredicate": {
+                  "value": {
+                    "signature": "unsigned-stub",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-predicate-001",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-predicate-001",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-predicate-001",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "query_type": "predicate",
+                            "query": [
+                              {
+                                "seq_num": 1,
+                                "expression1": {
+                                  "attribute_name": "firstName",
+                                  "operator": "eq",
+                                  "attribute_value": "John"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "SPDCI FR: Search by predicate conditions"
+                },
+                "spdciExpression": {
+                  "value": {
+                    "signature": "unsigned-stub",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-expression-001",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-expression-001",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-expression-001",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "query_type": "expression",
+                            "query": {
+                              "type": "ns:org:QueryType:expression",
+                              "value": {
+                                "expression": {
+                                  "firstName": "John",
+                                  "lastName": "Doe"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "SPDCI FR: Search by expression query"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Search successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DCISearchResponse"
+                },
+                "example": {
+                  "signature": "",
+                  "header": {
+                    "version": "1.0.0",
+                    "message_id": "response-test-fr-001",
+                    "message_ts": "2026-03-17T15:00:01Z",
+                    "action": "on-search",
+                    "sender_id": "openimis",
+                    "receiver_id": "test-sender",
+                    "total_count": 2,
+                    "status": "succ"
+                  },
+                  "message": {
+                    "transaction_id": "txn-12345",
+                    "correlation_id": "txn-12345",
+                    "search_response": [
+                      {
+                        "reference_id": "ref-001",
+                        "timestamp": "2026-03-17T15:00:01Z",
+                        "status": "succ",
+                        "status_reason_message": "Success",
+                        "data": {
+                          "version": "1.0.0",
+                          "reg_type": "ns:org:RegistryType:FR",
+                          "reg_record_type": "Farmer",
+                          "reg_records": [
+                            {
+                              "@type": "Person",
+                              "id": "12345",
+                              "firstName": "John",
+                              "lastName": "Doe",
+                              "dob": "1990-01-15",
+                              "gender": "Male"
+                            },
+                            {
+                              "@type": "Person",
+                              "id": "12346",
+                              "firstName": "Jane",
+                              "lastName": "Smith",
+                              "dob": "1985-06-20",
+                              "gender": "Female"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Invalid request format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/api_dci/registry/person/openimis:individual:f6a0b402-0dc0-436e-a7bb-ec65dd4f011f": {
+      "get": {
+        "summary": "Get Person details by ID",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "DCI Registry"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Person details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DCIPerson"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/api_dci/registry/sync/search": {
+      "post": {
+        "summary": "Synchronous Person search (SPDCI FR v1.0.0 Certified)",
+        "deprecated": false,
+        "description": "Search for Person records following the SPDCI Farmer Registry (FR) v1.0.0 standard.\n\n**✅ SPDCI FR v1.0.0 Compliance:**\n- Test ID: FR-CORE-RG-SYNC-SEARCH-01\n- Status: PASSED (7/7 steps)\n- Validated: March 2026\n\n**Supported Query Types:**\n- `idtype-value` - Search by identifier (FARMER_ID, UIN, NIN)\n- `expression` - Free-form expression queries\n- `predicate` - Structured predicate queries with operators (eq, gt, lt, ge, le, in)\n- `sync` / `async` - Legacy OpenIMIS format (backward compatibility)\n\n**Response Format:** Returns immediate response with matching Person records in FR format (with correlation_id and reg_records).\n",
+        "tags": [
+          "DCI Registry"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DCISearchRequest"
+              },
+              "examples": {
+                "searchAll": {
+                  "value": {
+                    "signature": {},
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-001",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-12345",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-001",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "query_type": "sync",
+                            "query": {
+                              "@type": "Person"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "Search all persons"
+                },
+                "searchByName": {
+                  "value": {
+                    "signature": {},
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-002",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-12346",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-002",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "reg_type": "person",
+                            "query_type": "sync",
+                            "query": {
+                              "@type": "Person",
+                              "firstName": "John",
+                              "lastName": "Doe"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "Search by first and last name"
+                },
+                "searchAdvanced": {
+                  "value": {
+                    "signature": {},
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-003",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-12347",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-003",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "reg_type": "person",
+                            "query_type": "sync",
+                            "query": {
+                              "@type": "Person",
+                              "firstName": "Jane",
+                              "lastName": "Smith",
+                              "gender": "Female",
+                              "email": "jane@example.com"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "Advanced search with multiple criteria"
+                },
+                "spdciIdTypeValue": {
+                  "value": {
+                    "signature": "unsigned-stub",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-idtype-001",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-idtype-001",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-idtype-001",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "query_type": "idtype-value",
+                            "query": {
+                              "type": "FARMER_ID",
+                              "value": "FARMER-TEST-001"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "SPDCI FR: Search by identifier (idtype-value)"
+                },
+                "spdciPredicate": {
+                  "value": {
+                    "signature": "unsigned-stub",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-predicate-001",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-predicate-001",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-predicate-001",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "query_type": "predicate",
+                            "query": [
+                              {
+                                "seq_num": 1,
+                                "expression1": {
+                                  "attribute_name": "firstName",
+                                  "operator": "eq",
+                                  "attribute_value": "John"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "SPDCI FR: Search by predicate conditions"
+                },
+                "spdciExpression": {
+                  "value": {
+                    "signature": "unsigned-stub",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "test-fr-expression-001",
+                      "message_ts": "2026-03-17T15:00:00Z",
+                      "action": "search",
+                      "sender_id": "test-sender",
+                      "receiver_id": "openimis"
+                    },
+                    "message": {
+                      "transaction_id": "txn-expression-001",
+                      "search_request": [
+                        {
+                          "reference_id": "ref-expression-001",
+                          "timestamp": "2026-03-17T15:00:00Z",
+                          "search_criteria": {
+                            "query_type": "expression",
+                            "query": {
+                              "type": "ns:org:QueryType:expression",
+                              "value": {
+                                "expression": {
+                                  "firstName": "John",
+                                  "lastName": "Doe"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "SPDCI FR: Search by expression query"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Search successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DCISearchResponse"
+                },
+                "example": {
+                  "signature": "",
+                  "header": {
+                    "version": "1.0.0",
+                    "message_id": "response-test-fr-001",
+                    "message_ts": "2026-03-17T15:00:01Z",
+                    "action": "on-search",
+                    "sender_id": "openimis",
+                    "receiver_id": "test-sender",
+                    "total_count": 2,
+                    "status": "succ"
+                  },
+                  "message": {
+                    "transaction_id": "txn-12345",
+                    "correlation_id": "txn-12345",
+                    "search_response": [
+                      {
+                        "reference_id": "ref-001",
+                        "timestamp": "2026-03-17T15:00:01Z",
+                        "status": "succ",
+                        "status_reason_message": "Success",
+                        "data": {
+                          "version": "1.0.0",
+                          "reg_type": "ns:org:RegistryType:FR",
+                          "reg_record_type": "Farmer",
+                          "reg_records": [
+                            {
+                              "@type": "Person",
+                              "id": "12345",
+                              "firstName": "John",
+                              "lastName": "Doe",
+                              "dob": "1990-01-15",
+                              "gender": "Male"
+                            },
+                            {
+                              "@type": "Person",
+                              "id": "12346",
+                              "firstName": "Jane",
+                              "lastName": "Smith",
+                              "dob": "1985-06-20",
+                              "gender": "Female"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Invalid request format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DCISearchRequest": {
+        "type": "object",
+        "required": [
+          "header",
+          "message"
+        ],
+        "properties": {
+          "signature": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Signature string"
+              },
+              {
+                "type": "object",
+                "description": "Signature object",
+                "properties": {}
+              }
+            ],
+            "example": {}
+          },
+          "header": {
+            "$ref": "#/components/schemas/DCIHeader"
+          },
+          "message": {
+            "$ref": "#/components/schemas/DCISearchMessage"
+          }
+        }
+      },
+      "DCIHeader": {
+        "type": "object",
+        "required": [
+          "version",
+          "message_id",
+          "message_ts",
+          "action",
+          "sender_id"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "example": "1.0.0"
+          },
+          "message_id": {
+            "type": "string",
+            "example": "test-fr-001"
+          },
+          "message_ts": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-03-17T15:00:00Z"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "search",
+              "on-search"
+            ],
+            "example": "search"
+          },
+          "sender_id": {
+            "type": "string",
+            "example": "test-sender"
+          },
+          "sender_uri": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://sender.example.com/callback"
+          },
+          "receiver_id": {
+            "type": "string",
+            "example": "openimis"
+          },
+          "total_count": {
+            "type": "integer",
+            "example": 10
+          },
+          "is_msg_encrypted": {
+            "type": "boolean",
+            "default": false
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {}
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succ",
+              "success",
+              "error"
+            ],
+            "description": "Status: 'succ' (FR format), 'success' (IBR/SR format), or 'error'"
+          }
+        }
+      },
+      "DCISearchMessage": {
+        "type": "object",
+        "required": [
+          "transaction_id"
+        ],
+        "properties": {
+          "transaction_id": {
+            "type": "string",
+            "example": "txn-12345"
+          },
+          "search_request": {
+            "type": "array",
+            "description": "FR format - array of search requests",
+            "items": {
+              "$ref": "#/components/schemas/DCISearchRequestItem"
+            }
+          }
+        }
+      },
+      "DCISearchRequestItem": {
+        "type": "object",
+        "required": [
+          "reference_id",
+          "timestamp",
+          "search_criteria"
+        ],
+        "properties": {
+          "reference_id": {
+            "type": "string",
+            "example": "ref-001"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-03-17T15:00:00Z"
+          },
+          "search_criteria": {
+            "$ref": "#/components/schemas/DCISearchCriteria"
+          },
+          "locale": {
+            "type": "string",
+            "example": "en"
+          }
+        }
+      },
+      "DCISearchCriteria": {
+        "type": "object",
+        "required": [
+          "query_type",
+          "query"
+        ],
+        "properties": {
+          "reg_type": {
+            "type": "string",
+            "example": "person"
+          },
+          "version": {
+            "type": "string",
+            "example": "1.0.0"
+          },
+          "reg_record_type": {
+            "type": "string",
+            "example": "Person"
+          },
+          "query_type": {
+            "type": "string",
+            "enum": [
+              "idtype-value",
+              "expression",
+              "predicate",
+              "sync",
+              "async"
+            ],
+            "description": "SPDCI query types: idtype-value (search by identifier), expression (free-form query), predicate (structured conditions), sync/async (legacy)",
+            "example": "idtype-value"
+          },
+          "query": {
+            "type": "object",
+            "properties": {
+              "@type": {
+                "type": "string",
+                "example": "Person"
+              },
+              "firstName": {
+                "type": "string",
+                "example": "John"
+              },
+              "lastName": {
+                "type": "string",
+                "example": "Doe"
+              },
+              "dob": {
+                "type": "string",
+                "format": "date",
+                "example": "1990-01-15"
+              },
+              "gender": {
+                "type": "string",
+                "enum": [
+                  "Male",
+                  "Female",
+                  "Other"
+                ],
+                "example": "Male"
+              },
+              "phone": {
+                "type": "string",
+                "example": "+1234567890"
+              },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "example": "john.doe@example.com"
+              }
+            }
+          },
+          "sort": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {}
+          },
+          "consent": {
+            "type": "object",
+            "properties": {}
+          },
+          "authorize": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "DCISearchResponse": {
+        "type": "object",
+        "properties": {
+          "signature": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {}
+              }
+            ]
+          },
+          "header": {
+            "$ref": "#/components/schemas/DCIHeader"
+          },
+          "message": {
+            "$ref": "#/components/schemas/DCISearchResponseMessage"
+          }
+        }
+      },
+      "DCISearchResponseMessage": {
+        "type": "object",
+        "properties": {
+          "transaction_id": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string",
+            "description": "Correlation ID (FR format)"
+          },
+          "search_response": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "reference_id": {
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "succ",
+                    "fail"
+                  ]
+                },
+                "status_reason_code": {
+                  "type": "string",
+                  "description": "Only present for error responses"
+                },
+                "status_reason_message": {
+                  "type": "string"
+                },
+                "data": {
+                  "type": "object",
+                  "description": "FR format response data",
+                  "properties": {
+                    "version": {
+                      "type": "string"
+                    },
+                    "reg_type": {
+                      "type": "string"
+                    },
+                    "reg_record_type": {
+                      "type": "string"
+                    },
+                    "reg_records": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DCIPerson"
+                      }
+                    }
+                  }
+                },
+                "registry_data": {
+                  "type": "object",
+                  "description": "IBR/SR format response data",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DCIPerson"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "DCIPerson": {
+        "type": "object",
+        "properties": {
+          "@type": {
+            "type": "string",
+            "example": "Person"
+          },
+          "id": {
+            "type": "string",
+            "example": "12345"
+          },
+          "firstName": {
+            "type": "string",
+            "example": "John"
+          },
+          "lastName": {
+            "type": "string",
+            "example": "Doe"
+          },
+          "dob": {
+            "type": "string",
+            "format": "date",
+            "example": "1990-01-15"
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "Male",
+              "Female",
+              "Other"
+            ],
+            "example": "Male"
+          },
+          "phone": {
+            "type": "string",
+            "example": "+1234567890"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "john.doe@example.com"
+          }
+        }
+      },
+      "DCIAckResponse": {
+        "type": "object",
+        "properties": {
+          "signature": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {}
+              }
+            ]
+          },
+          "header": {
+            "$ref": "#/components/schemas/DCIHeader"
+          },
+          "message": {
+            "type": "object",
+            "properties": {
+              "transaction_id": {
+                "type": "string"
+              },
+              "search_response": {
+                "type": "array",
+                "items": {}
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "header": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "example": "error"
+              },
+              "message": {
+                "type": "string",
+                "example": "Invalid request format"
+              }
+            }
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {}
+          }
+        }
+      }
+    },
+    "responses": {},
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "servers": [],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ]
+}

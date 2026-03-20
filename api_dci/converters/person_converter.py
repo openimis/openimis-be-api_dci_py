@@ -1,111 +1,334 @@
 """
-DCI Person Converter
+DCI Person Converter - SPDCI Compliant
 
-Converts between DCI Person schema and OpenIMIS Individual model.
+Converts between SPDCI Person schema and OpenIMIS Individual model.
+Follows SPDCI DO.IBR.01 Person Data Object specification.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class PersonConverter:
     """
-    Converter for DCI Person <-> OpenIMIS Individual
+    Converter for SPDCI Person <-> OpenIMIS Individual
+
+    Implements SPDCI Integrated Beneficiary Registry standard:
+    https://standards.spdci.org/standards/wip-integrated-beneficiary-registry-v1.0.0/ibr/1.-crvs/data/data-objects/do.ibr.01-person
     """
-    
+
     @staticmethod
     def individual_to_dci_person(individual):
         """
-        Convert OpenIMIS Individual to DCI Person format
-        
+        Convert OpenIMIS Individual to SPDCI-compliant Person format.
+
         Args:
             individual: OpenIMIS Individual model instance
-            
+
         Returns:
-            dict: DCI Person object
+            dict: SPDCI Person object (DO.IBR.01)
         """
-        person = {
-            "@type": "Person",
-            "id": f"openimis:individual:{individual.uuid}",
-        }
-        
-        # Basic fields
-        if individual.first_name:
-            person["firstName"] = individual.first_name
-        if individual.last_name:
-            person["lastName"] = individual.last_name
+        person = {}
+
+        # identifier (0...* DO.COM.01 Identifier)
+        person["identifier"] = [
+            {
+                "type": "openimis_uuid",
+                "value": str(individual.uuid),
+                "system": "openimis"
+            }
+        ]
+
+        # Add internal ID if available
+        if hasattr(individual, 'id') and individual.id:
+            person["identifier"].append({
+                "type": "openimis_id",
+                "value": str(individual.id),
+                "system": "openimis"
+            })
+
+        # name (0...1 DO.COM.02 Name)
+        if individual.first_name or individual.last_name:
+            name_obj = {}
+            if individual.first_name:
+                name_obj["given_name"] = individual.first_name
+            if individual.last_name:
+                name_obj["family_name"] = individual.last_name
+
+            # Construct full_name
+            full_name_parts = []
+            if individual.first_name:
+                full_name_parts.append(individual.first_name)
+            if individual.last_name:
+                full_name_parts.append(individual.last_name)
+            if full_name_parts:
+                name_obj["full_name"] = " ".join(full_name_parts)
+
+            person["name"] = name_obj
+
+        # birth_date (0...1 DF.COM.STRING.01 date_time)
         if individual.dob:
-            person["dob"] = individual.dob.isoformat()
-            
-        # Gender mapping - Individual model doesn't have a gender field by default
-        # Gender might be in json_ext or not stored at all
+            # Convert date to ISO 8601 datetime format
+            person["birth_date"] = f"{individual.dob.isoformat()}T00:00:00Z"
+
+        # sex (0...1 CD.COM.03 sex) - enumeration: male, female, others, unknown
+        sex_value = PersonConverter._extract_sex(individual)
+        if sex_value:
+            person["sex"] = sex_value
+
+        # phone_number (0...* DF.COM.STRING.02 phone_number)
+        phone_numbers = PersonConverter._extract_phone_numbers(individual)
+        if phone_numbers:
+            person["phone_number"] = phone_numbers
+
+        # email (0...* DF.COM.STRING.07 email)
+        emails = PersonConverter._extract_emails(individual)
+        if emails:
+            person["email"] = emails
+
+        # address (0...* DO.COM.03 Address)
+        addresses = PersonConverter._extract_addresses(individual)
+        if addresses:
+            person["address"] = addresses
+
+        # registration_date (0...1 DF.COM.STRING.01 date_time)
+        if hasattr(individual, 'date_created') and individual.date_created:
+            person["registration_date"] = individual.date_created.isoformat()
+
+        # last_updated (0...1 DF.COM.STRING.01 date_time)
+        if hasattr(individual, 'date_updated') and individual.date_updated:
+            person["last_updated"] = individual.date_updated.isoformat()
+
+        return person
+
+    @staticmethod
+    def _extract_sex(individual):
+        """
+        Extract sex from Individual model.
+
+        Returns: "male", "female", "others", or "unknown" per SPDCI standard
+        """
+        # Try to get gender from direct attribute
         if hasattr(individual, 'gender') and individual.gender:
             try:
-                gender_map = {
-                    'M': 'Male',
-                    'F': 'Female',
-                    'O': 'Other'
-                }
                 if hasattr(individual.gender, 'code'):
-                    person["gender"] = gender_map.get(individual.gender.code, 'Other')
+                    code = individual.gender.code
                 else:
-                    person["gender"] = gender_map.get(individual.gender, 'Other')
+                    code = individual.gender
+
+                # Map to SPDCI sex enumeration
+                sex_map = {
+                    'M': 'male',
+                    'F': 'female',
+                    'O': 'others',
+                    'U': 'unknown'
+                }
+                return sex_map.get(code, 'unknown')
             except AttributeError:
-                pass  # Gender field exists but has issues, skip it
+                pass
 
-        # Try to get gender from json_ext
-        if 'gender' not in person and individual.json_ext:
-            if isinstance(individual.json_ext, dict) and 'gender' in individual.json_ext:
-                person["gender"] = individual.json_ext['gender']
+        # Try to get from json_ext
+        if individual.json_ext and isinstance(individual.json_ext, dict):
+            if 'sex' in individual.json_ext:
+                return individual.json_ext['sex']
+            if 'gender' in individual.json_ext:
+                # Try to normalize it
+                gender_value = str(individual.json_ext['gender']).lower()
+                if gender_value in ['m', 'male']:
+                    return 'male'
+                elif gender_value in ['f', 'female']:
+                    return 'female'
+                elif gender_value in ['o', 'other', 'others']:
+                    return 'others'
+                else:
+                    return 'unknown'
 
-        # Contact information - these fields may not exist in Individual model
+        return None
+
+    @staticmethod
+    def _extract_phone_numbers(individual):
+        """
+        Extract phone numbers from Individual model.
+
+        Returns: list of phone numbers (E.164 format recommended)
+        """
+        phone_numbers = []
+
+        # Try direct phone attribute
         if hasattr(individual, 'phone') and individual.phone:
-            person["phone"] = individual.phone
-        elif individual.json_ext and isinstance(individual.json_ext, dict):
-            if 'phone' in individual.json_ext:
-                person["phone"] = individual.json_ext['phone']
+            phone_numbers.append(str(individual.phone))
 
+        # Try json_ext
+        if individual.json_ext and isinstance(individual.json_ext, dict):
+            if 'phone' in individual.json_ext:
+                phone_numbers.append(str(individual.json_ext['phone']))
+            if 'phone_number' in individual.json_ext:
+                phone = individual.json_ext['phone_number']
+                if isinstance(phone, list):
+                    phone_numbers.extend([str(p) for p in phone])
+                else:
+                    phone_numbers.append(str(phone))
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_phones = []
+        for phone in phone_numbers:
+            if phone not in seen:
+                seen.add(phone)
+                unique_phones.append(phone)
+
+        return unique_phones if unique_phones else None
+
+    @staticmethod
+    def _extract_emails(individual):
+        """
+        Extract email addresses from Individual model.
+
+        Returns: list of email addresses
+        """
+        emails = []
+
+        # Try direct email attribute
         if hasattr(individual, 'email') and individual.email:
-            person["email"] = individual.email
-        elif individual.json_ext and isinstance(individual.json_ext, dict):
+            emails.append(str(individual.email))
+
+        # Try json_ext
+        if individual.json_ext and isinstance(individual.json_ext, dict):
             if 'email' in individual.json_ext:
-                person["email"] = individual.json_ext['email']
-            
-        return person
-    
+                email = individual.json_ext['email']
+                if isinstance(email, list):
+                    emails.extend([str(e) for e in email])
+                else:
+                    emails.append(str(email))
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_emails = []
+        for email in emails:
+            if email not in seen:
+                seen.add(email)
+                unique_emails.append(email)
+
+        return unique_emails if unique_emails else None
+
+    @staticmethod
+    def _extract_addresses(individual):
+        """
+        Extract addresses from Individual model.
+
+        Returns: list of address objects (DO.COM.03 Address)
+        """
+        addresses = []
+
+        # Try to get from location
+        if hasattr(individual, 'location') and individual.location:
+            try:
+                location = individual.location
+                address = {"type": "residential"}
+
+                # Try to build address from location hierarchy
+                if hasattr(location, 'name') and location.name:
+                    address["city"] = location.name
+
+                # Try to get parent locations (district, region, etc.)
+                if hasattr(location, 'parent') and location.parent:
+                    parent = location.parent
+                    if hasattr(parent, 'name') and parent.name:
+                        address["district"] = parent.name
+
+                    # Try to get country from upper level
+                    if hasattr(parent, 'parent') and parent.parent:
+                        grandparent = parent.parent
+                        if hasattr(grandparent, 'name') and grandparent.name:
+                            address["region"] = grandparent.name
+
+                # Add code if available
+                if hasattr(location, 'code') and location.code:
+                    address["location_code"] = location.code
+
+                if len(address) > 1:  # More than just "type"
+                    addresses.append(address)
+            except Exception:
+                pass
+
+        # Try to get from json_ext
+        if individual.json_ext and isinstance(individual.json_ext, dict):
+            if 'address' in individual.json_ext:
+                addr = individual.json_ext['address']
+                if isinstance(addr, list):
+                    addresses.extend(addr)
+                elif isinstance(addr, dict):
+                    addresses.append(addr)
+
+        return addresses if addresses else None
+
     @staticmethod
     def dci_person_to_individual_data(dci_person):
         """
-        Convert DCI Person to OpenIMIS Individual data
-        
+        Convert SPDCI Person to OpenIMIS Individual data.
+
         Args:
-            dci_person: DCI Person dict
-            
+            dci_person: SPDCI Person dict (DO.IBR.01)
+
         Returns:
-            dict: Data suitable for Individual model
+            dict: Data suitable for Individual model creation/update
         """
         data = {}
-        
-        # Basic fields
-        if "firstName" in dci_person:
-            data["first_name"] = dci_person["firstName"]
-        if "lastName" in dci_person:
-            data["last_name"] = dci_person["lastName"]
-        if "dob" in dci_person:
-            # Parse ISO date string to date object
-            data["dob"] = datetime.fromisoformat(dci_person["dob"]).date()
-            
-        # Gender mapping (reverse)
-        if "gender" in dci_person:
-            gender_reverse_map = {
-                'Male': 'M',
-                'Female': 'F',
-                'Other': 'O'
+
+        # Extract name
+        if "name" in dci_person and isinstance(dci_person["name"], dict):
+            name = dci_person["name"]
+            if "given_name" in name:
+                data["first_name"] = name["given_name"]
+            if "family_name" in name:
+                data["last_name"] = name["family_name"]
+
+        # Extract birth_date
+        if "birth_date" in dci_person:
+            try:
+                # Parse ISO datetime and extract date
+                dt = datetime.fromisoformat(dci_person["birth_date"].replace('Z', '+00:00'))
+                data["dob"] = dt.date()
+            except (ValueError, AttributeError):
+                pass
+
+        # Extract sex and store in json_ext
+        json_ext = {}
+        if "sex" in dci_person:
+            # Map SPDCI sex to OpenIMIS gender code
+            sex_map = {
+                'male': 'M',
+                'female': 'F',
+                'others': 'O',
+                'unknown': 'U'
             }
-            data["gender_code"] = gender_reverse_map.get(dci_person["gender"], 'O')
-            
-        # Contact information
-        if "phone" in dci_person:
-            data["phone"] = dci_person["phone"]
+            json_ext["sex"] = dci_person["sex"]
+            data["gender_code"] = sex_map.get(dci_person["sex"], 'U')
+
+        # Extract phone_number
+        if "phone_number" in dci_person:
+            phones = dci_person["phone_number"]
+            if isinstance(phones, list) and phones:
+                data["phone"] = phones[0]  # Take first phone
+                if len(phones) > 1:
+                    json_ext["phone_numbers"] = phones
+            elif phones:
+                data["phone"] = str(phones)
+
+        # Extract email
         if "email" in dci_person:
-            data["email"] = dci_person["email"]
-            
+            emails = dci_person["email"]
+            if isinstance(emails, list) and emails:
+                data["email"] = emails[0]  # Take first email
+                if len(emails) > 1:
+                    json_ext["emails"] = emails
+            elif emails:
+                data["email"] = str(emails)
+
+        # Store address in json_ext (Individual model doesn't have address field)
+        if "address" in dci_person:
+            json_ext["address"] = dci_person["address"]
+
+        # Store additional data in json_ext
+        if json_ext:
+            data["json_ext"] = json_ext
+
         return data
