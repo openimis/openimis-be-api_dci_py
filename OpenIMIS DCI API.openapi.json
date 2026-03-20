@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "OpenIMIS DCI API",
-    "description": "DCI (Digital Convergence Initiative) compliant API for Person registry operations.\n\nThis API implements the DCI Registry Core API specification for searching Person records.\nSupports both sync and async search operations following the DCI message format.\n",
+    "description": "**SPDCI (Social Protection Digital Convergence Initiative) compliant Registry Core API**\n\nThis API implements the SPDCI Registry Core API specification following **SPDCI FR (Farmer Registry) v1.0.0** standard.\n\n**Supported Operations:**\n- **Search**: Synchronous and asynchronous person search with multiple query types (idtype-value, expression, predicate)\n- **Subscription**: Event-based notifications for registry changes (REGISTER, UPDATE, DEREGISTER)\n- **Person Details**: Retrieve individual person records\n\n**Registry Type:** Configurable via `SPDCI_REGISTRY_TYPE` environment variable (FR, SR, or IBR)\n\n**Compliance Status:** ✅ SPDCI FR v1.0.0 Certified (March 2026)\n",
     "version": "1.0.0",
     "contact": {
       "name": "OpenIMIS Support",
@@ -11,10 +11,12 @@
   },
   "tags": [
     {
-      "name": "Authentication"
+      "name": "Authentication",
+      "description": "Authentication and authorization endpoints"
     },
     {
-      "name": "DCI Registry"
+      "name": "Registry Core API",
+      "description": "SPDCI Registry Core API endpoints for search, subscription, and person operations"
     }
   ],
   "paths": {
@@ -78,13 +80,13 @@
         "security": []
       }
     },
-    "/reg/search": {
+    "/api/api_dci/registry/async/search": {
       "post": {
         "summary": "Asynchronous Person search",
         "deprecated": false,
-        "description": "Asynchronously search for Person records following the DCI standard.\nReturns immediate 202 ACK response while queuing the search task.\nResults will be posted back to sender_uri when ready.\n",
+        "description": "Asynchronously search for Person records following the SPDCI standard.\n\nReturns immediate 202 ACK response while queuing the search task. Results will be posted back to sender_uri when ready.\n\n**Query Types:** idtype-value, expression, predicate\n\n**Test ID:** FR-CORE-RG-ASYNC-SEARCH-01\n",
         "tags": [
-          "DCI Registry"
+          "Registry Core API"
         ],
         "parameters": [],
         "requestBody": {
@@ -92,6 +94,32 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/DCISearchRequest"
+              },
+              "example": {
+                "signature": {},
+                "header": {
+                  "version": "1.0.0",
+                  "message_id": "test-fr-003",
+                  "message_ts": "2026-03-17T15:00:00Z",
+                  "action": "search",
+                  "sender_id": "test-sender",
+                  "receiver_id": "openimis"
+                },
+                "message": {
+                  "transaction_id": "txn-12347",
+                  "search_request": [
+                    {
+                      "reference_id": "ref-003",
+                      "timestamp": "2026-03-17T15:00:00Z",
+                      "search_criteria": {
+                        "query_type": "sync",
+                        "query": {
+                          "@type": "Person"
+                        }
+                      }
+                    }
+                  ]
+                }
               }
             }
           },
@@ -119,11 +147,11 @@
     },
     "/api/api_dci/registry/subscribe": {
       "post": {
-        "summary": "Event Subscription (SPDCI FR v1.0.0 Certified)",
+        "summary": "Event Subscription",
         "deprecated": false,
-        "description": "Search for Person records following the SPDCI Farmer Registry (FR) v1.0.0 standard.\n\n**✅ SPDCI FR v1.0.0 Compliance:**\n- Test ID: FR-CORE-RG-SYNC-SEARCH-01\n- Status: PASSED (7/7 steps)\n- Validated: March 2026\n\n**Supported Query Types:**\n- `idtype-value` - Search by identifier (FARMER_ID, UIN, NIN)\n- `expression` - Free-form expression queries\n- `predicate` - Structured predicate queries with operators (eq, gt, lt, ge, le, in)\n- `sync` / `async` - Legacy OpenIMIS format (backward compatibility)\n\n**Response Format:** Returns immediate response with matching Person records in FR format (with correlation_id and reg_records).\n",
+        "description": "Subscribe to registry event notifications (REGISTER, UPDATE, DEREGISTER).\n\nWhen subscribed, the registry will POST notify requests to your sender_uri whenever matching events occur.\n\n**Event Types:** REGISTER, UPDATE, DEREGISTER, ALL\n\n**Filter Options:** idtype-value, expression, predicate\n\n**Response:** Returns ACK with subscription_id\n\n**Test ID:** FR-CORE-RG-SUBSCRIBE-01 (PASSED)\n",
         "tags": [
-          "DCI Registry"
+          "Registry Core API"
         ],
         "parameters": [],
         "requestBody": {
@@ -150,7 +178,7 @@
                       "transaction_id": "txn-subscribe-001",
                       "subscribe_request": [
                         {
-                          "reference_id": "ref-001",
+                          "reference_id": "ref-002",
                           "timestamp": "2026-03-17T10:00:00Z",
                           "event_type": "ALL",
                           "filter": {
@@ -419,11 +447,11 @@
     },
     "/api/api_dci/registry/unsubscribe": {
       "post": {
-        "summary": "Event Unsubscription (SPDCI FR v1.0.0 Certified)",
+        "summary": "Event Unsubscription",
         "deprecated": false,
-        "description": "Search for Person records following the SPDCI Farmer Registry (FR) v1.0.0 standard.\n\n**✅ SPDCI FR v1.0.0 Compliance:**\n- Test ID: FR-CORE-RG-SYNC-SEARCH-01\n- Status: PASSED (7/7 steps)\n- Validated: March 2026\n\n**Supported Query Types:**\n- `idtype-value` - Search by identifier (FARMER_ID, UIN, NIN)\n- `expression` - Free-form expression queries\n- `predicate` - Structured predicate queries with operators (eq, gt, lt, ge, le, in)\n- `sync` / `async` - Legacy OpenIMIS format (backward compatibility)\n\n**Response Format:** Returns immediate response with matching Person records in FR format (with correlation_id and reg_records).\n",
+        "description": "Unsubscribe from registry event notifications using subscription_id.\n\nStops receiving notify callbacks for the specified subscription.\n\n**Response:** Returns ACK confirming unsubscription\n\n**Test ID:** FR-CORE-RG-UNSUBSCRIBE-01 (PASSED)\n",
         "tags": [
-          "DCI Registry"
+          "Registry Core API"
         ],
         "parameters": [],
         "requestBody": {
@@ -449,7 +477,7 @@
                       "transaction_id": "txn-unsubscribe-001",
                       "unsubscribe_request": [
                         {
-                          "reference_id": "ref-001",
+                          "reference_id": "ref-002",
                           "timestamp": "2026-03-17T10:00:00Z",
                           "subscription_id": "sub-XXXXXXXXXXXXXXXX"
                         }
@@ -713,9 +741,9 @@
       "get": {
         "summary": "Get Person details by ID",
         "deprecated": false,
-        "description": "",
+        "description": "Retrieve detailed information for a specific person by their unique identifier.\n\n**ID Format:** `{namespace}:{resource}:{uuid}`\n\nExample: `openimis:individual:f6a0b402-0dc0-436e-a7bb-ec65dd4f011f`\n",
         "tags": [
-          "DCI Registry"
+          "Registry Core API"
         ],
         "parameters": [],
         "responses": {
@@ -740,11 +768,11 @@
     },
     "/api/api_dci/registry/sync/search": {
       "post": {
-        "summary": "Synchronous Person search (SPDCI FR v1.0.0 Certified)",
+        "summary": "Synchronous Person search",
         "deprecated": false,
-        "description": "Search for Person records following the SPDCI Farmer Registry (FR) v1.0.0 standard.\n\n**✅ SPDCI FR v1.0.0 Compliance:**\n- Test ID: FR-CORE-RG-SYNC-SEARCH-01\n- Status: PASSED (7/7 steps)\n- Validated: March 2026\n\n**Supported Query Types:**\n- `idtype-value` - Search by identifier (FARMER_ID, UIN, NIN)\n- `expression` - Free-form expression queries\n- `predicate` - Structured predicate queries with operators (eq, gt, lt, ge, le, in)\n- `sync` / `async` - Legacy OpenIMIS format (backward compatibility)\n\n**Response Format:** Returns immediate response with matching Person records in FR format (with correlation_id and reg_records).\n",
+        "description": "Search for Person records with immediate response.\n\n**Supported Query Types:**\n- `idtype-value` - Search by identifier (FARMER_ID, UIN, NIN)\n- `expression` - Free-form expression queries\n- `predicate` - Structured predicate queries with operators (eq, gt, lt, ge, le, in)\n- `sync` / `async` - Legacy OpenIMIS format (backward compatibility)\n\n**Response Format:** Immediate response with matching Person records in SPDCI format (correlation_id + reg_records)\n\n**Test ID:** FR-CORE-RG-SYNC-SEARCH-01 (PASSED)\n",
         "tags": [
-          "DCI Registry"
+          "Registry Core API"
         ],
         "parameters": [],
         "requestBody": {
@@ -1036,11 +1064,11 @@
     },
     "/api/api_dci/registry/notify": {
       "post": {
-        "summary": "Receive registry event notifications (SPDCI FR v1.0.0 Certified)",
+        "summary": "Receive registry event notifications",
         "deprecated": false,
-        "description": "Receive notifications from other registries when subscribed to their events.\n\n**✅ SPDCI FR v1.0.0 Compliance:**\n- Test ID: FR-CORE-RG-NOTIFY-01\n- Status: PASSED\n- Validated: March 2026\n\n**Callback Receiver Endpoint**\n\nThis endpoint is called BY external registries to notify us about:\n- **REGISTER**: New person/farmer/member registered\n- **UPDATE**: Existing record updated  \n- **DEREGISTER**: Record deactivated/deleted\n\nWhen we subscribe to another registry (providing our sender_uri), that registry will POST notify requests to this endpoint.\n\nThe notification contains the full resource record in SPDCI format.\n\n**Response:** Returns ACK to confirm receipt of notification.\n",
+        "description": "Callback endpoint to receive notifications from other registries when subscribed to their events.\n\n**This endpoint is called BY external registries** to notify about:\n- **REGISTER**: New person/farmer/member registered\n- **UPDATE**: Existing record updated  \n- **DEREGISTER**: Record deactivated/deleted\n\nWhen subscribing to another registry (providing our sender_uri), that registry will POST notify requests to this endpoint.\n\nThe notification contains the full resource record in SPDCI format.\n\n**Response:** Returns ACK to confirm receipt\n\n**Test ID:** FR-CORE-RG-NOTIFY-01 (PASSED)\n",
         "tags": [
-          "DCI Registry"
+          "Registry Core API"
         ],
         "parameters": [],
         "requestBody": {
@@ -1048,7 +1076,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["header", "message"],
+                "required": [
+                  "header",
+                  "message"
+                ],
                 "properties": {
                   "signature": {
                     "type": "string",
@@ -1056,39 +1087,103 @@
                   },
                   "header": {
                     "type": "object",
-                    "required": ["version", "message_id", "message_ts", "action", "sender_id", "receiver_id"],
+                    "required": [
+                      "version",
+                      "message_id",
+                      "message_ts",
+                      "action",
+                      "sender_id",
+                      "receiver_id"
+                    ],
                     "properties": {
-                      "version": { "type": "string", "example": "1.0.0" },
-                      "message_id": { "type": "string", "example": "msg-notify-001" },
-                      "message_ts": { "type": "string", "format": "date-time" },
-                      "action": { "type": "string", "enum": ["notify"] },
-                      "sender_id": { "type": "string", "description": "External registry ID" },
-                      "receiver_id": { "type": "string", "description": "Our registry ID" },
-                      "is_msg_encrypted": { "type": "boolean", "default": false }
+                      "version": {
+                        "type": "string",
+                        "example": "1.0.0"
+                      },
+                      "message_id": {
+                        "type": "string",
+                        "example": "msg-notify-001"
+                      },
+                      "message_ts": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "action": {
+                        "type": "string",
+                        "enum": [
+                          "notify"
+                        ]
+                      },
+                      "sender_id": {
+                        "type": "string",
+                        "description": "External registry ID"
+                      },
+                      "receiver_id": {
+                        "type": "string",
+                        "description": "Our registry ID"
+                      },
+                      "is_msg_encrypted": {
+                        "type": "boolean",
+                        "default": false
+                      }
                     }
                   },
                   "message": {
                     "type": "object",
-                    "required": ["transaction_id"],
+                    "required": [
+                      "transaction_id"
+                    ],
                     "properties": {
-                      "transaction_id": { "type": "string" },
-                      "correlation_id": { "type": "string" },
+                      "transaction_id": {
+                        "type": "string"
+                      },
+                      "correlation_id": {
+                        "type": "string"
+                      },
                       "notify_request": {
                         "type": "array",
                         "items": {
                           "type": "object",
                           "properties": {
-                            "reference_id": { "type": "string" },
-                            "timestamp": { "type": "string", "format": "date-time" },
-                            "subscription_id": { "type": "string" },
+                            "reference_id": {
+                              "type": "string"
+                            },
+                            "timestamp": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "subscription_id": {
+                              "type": "string"
+                            },
                             "data": {
                               "type": "object",
                               "properties": {
-                                "version": { "type": "string" },
-                                "reg_type": { "type": "string", "enum": ["FR", "SR", "IBR"] },
-                                "reg_record_type": { "type": "string" },
-                                "event_type": { "type": "string", "enum": ["REGISTER", "UPDATE", "DEREGISTER"] },
-                                "reg_record": { "type": "object" }
+                                "version": {
+                                  "type": "string"
+                                },
+                                "reg_type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "FR",
+                                    "SR",
+                                    "IBR"
+                                  ]
+                                },
+                                "reg_record_type": {
+                                  "type": "string"
+                                },
+                                "event_type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "REGISTER",
+                                    "UPDATE",
+                                    "DEREGISTER"
+                                  ]
+                                },
+                                "reg_record": {
+                                  "type": "object",
+                                  "properties": {}
+                                }
                               }
                             }
                           }
@@ -1185,26 +1280,59 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "signature": { "type": "string" },
+                    "signature": {
+                      "type": "string"
+                    },
                     "header": {
                       "type": "object",
                       "properties": {
-                        "version": { "type": "string" },
-                        "message_id": { "type": "string" },
-                        "message_ts": { "type": "string" },
-                        "action": { "type": "string", "enum": ["on-notify"] },
-                        "status": { "type": "string", "enum": ["succ"] },
-                        "sender_id": { "type": "string" },
-                        "receiver_id": { "type": "string" },
-                        "is_msg_encrypted": { "type": "boolean" }
+                        "version": {
+                          "type": "string"
+                        },
+                        "message_id": {
+                          "type": "string"
+                        },
+                        "message_ts": {
+                          "type": "string"
+                        },
+                        "action": {
+                          "type": "string",
+                          "enum": [
+                            "on-notify"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "succ"
+                          ]
+                        },
+                        "sender_id": {
+                          "type": "string"
+                        },
+                        "receiver_id": {
+                          "type": "string"
+                        },
+                        "is_msg_encrypted": {
+                          "type": "boolean"
+                        }
                       }
                     },
                     "message": {
                       "type": "object",
                       "properties": {
-                        "ack_status": { "type": "string", "enum": ["ACK"] },
-                        "timestamp": { "type": "string" },
-                        "correlation_id": { "type": "string" }
+                        "ack_status": {
+                          "type": "string",
+                          "enum": [
+                            "ACK"
+                          ]
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        },
+                        "correlation_id": {
+                          "type": "string"
+                        }
                       }
                     }
                   }
@@ -1228,7 +1356,8 @@
                   }
                 }
               }
-            }
+            },
+            "headers": {}
           },
           "400": {
             "description": "Invalid notification format",
@@ -1240,15 +1369,26 @@
                     "header": {
                       "type": "object",
                       "properties": {
-                        "status": { "type": "string", "enum": ["error"] },
-                        "message": { "type": "string" }
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "error"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
                       }
                     },
-                    "errors": { "type": "object" }
+                    "errors": {
+                      "type": "object",
+                      "properties": {}
+                    }
                   }
                 }
               }
-            }
+            },
+            "headers": {}
           }
         },
         "security": [

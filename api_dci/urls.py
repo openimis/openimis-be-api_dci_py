@@ -17,7 +17,7 @@ urlpatterns = [
     # DCI Registry Core API endpoints - Person operations
     path('registry/person/<str:person_id>', person_detail, name='person-detail'),
     path('registry/sync/search', sync_search, name='sync-search'),
-    path('reg/search', async_search, name='async-search'),
+    path('registry/async/search', async_search, name='async-search'),
 
     # DCI Registry Core API endpoints - Subscription operations
     path('registry/subscribe', subscribe, name='subscribe'),
