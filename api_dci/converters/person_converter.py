@@ -5,6 +5,7 @@ Converts between SPDCI Person schema and OpenIMIS Individual model.
 Follows SPDCI DO.IBR.01 Person Data Object specification.
 """
 from datetime import datetime, timezone
+from typing import Dict, Optional, Tuple
 
 
 class PersonConverter:
@@ -332,3 +333,168 @@ class PersonConverter:
             data["json_ext"] = json_ext
 
         return data
+
+    @staticmethod
+    def parse_person_id(person_id: str) -> Optional[str]:
+        """
+        Extract UUID from person_id format.
+
+        Args:
+            person_id: Person ID in format "namespace:resource:uuid"
+                      Example: "openimis:individual:f6a0b402-0dc0-436e-a7bb-ec65dd4f011f"
+
+        Returns:
+            str: UUID or None if format invalid
+        """
+        if not person_id:
+            return None
+
+        parts = person_id.split(':')
+        if len(parts) == 3 and parts[0] == 'openimis' and parts[1] == 'individual':
+            return parts[2]
+
+        return None
+
+    @staticmethod
+    def generate_person_id(individual) -> str:
+        """
+        Generate person_id from Individual.
+
+        Args:
+            individual: OpenIMIS Individual instance
+
+        Returns:
+            str: Person ID in format "openimis:individual:uuid"
+        """
+        return f"openimis:individual:{individual.uuid}"
+
+    @staticmethod
+    def create_individual_from_spdci(
+        spdci_person: Dict,
+        registry_type: str,
+        user,
+        metadata: Optional[Dict] = None
+    ) -> Tuple[object, Dict]:
+        """
+        Create Individual from SPDCI Person data.
+
+        Args:
+            spdci_person: SPDCI Person dict
+            registry_type: "FR", "SR", or "IBR"
+            user: Django User for audit trail
+            metadata: Optional metadata (source_system, external_id)
+
+        Returns:
+            tuple: (Individual instance, json_ext dict)
+
+        Raises:
+            ValueError: If required data is missing
+            ImportError: If Individual module not available
+        """
+        try:
+            from individual.models import Individual
+        except ImportError:
+            raise ImportError("Individual module not available")
+
+        # Import JsonExtManager here to avoid circular imports
+        from ..utils.json_ext_manager import JsonExtManager
+
+        # Extract base Individual data
+        base_data = PersonConverter.dci_person_to_individual_data(spdci_person)
+
+        # Structure json_ext with registry-specific data
+        json_ext = JsonExtManager.structure_json_ext(
+            registry_type=registry_type,
+            spdci_person=spdci_person,
+            metadata=metadata or {}
+        )
+
+        # Merge json_ext into base_data
+        base_data['json_ext'] = json_ext
+
+        # Handle gender lookup (Individual expects Gender FK, not gender_code string)
+        if 'gender_code' in base_data:
+            try:
+                from core.models import Gender
+                gender = Gender.objects.filter(code=base_data['gender_code']).first()
+                if gender:
+                    base_data['gender'] = gender
+                del base_data['gender_code']
+            except ImportError:
+                # If Gender model not available, store in json_ext
+                if 'gender_code' in base_data:
+                    del base_data['gender_code']
+
+        # Set audit fields
+        base_data['user_created'] = user
+        base_data['user_updated'] = user
+
+        # Create Individual
+        individual = Individual.objects.create(**base_data)
+
+        return individual, json_ext
+
+    @staticmethod
+    def update_individual_from_spdci(
+        individual,
+        spdci_person: Dict,
+        registry_type: str,
+        user,
+        metadata: Optional[Dict] = None
+    ) -> Tuple[object, Dict]:
+        """
+        Update Individual from SPDCI Person data.
+
+        Args:
+            individual: Existing Individual instance
+            spdci_person: SPDCI Person dict (partial update allowed)
+            registry_type: "FR", "SR", or "IBR"
+            user: Django User for audit trail
+            metadata: Optional metadata (source_system, external_id)
+
+        Returns:
+            tuple: (Updated Individual instance, updated json_ext dict)
+
+        Raises:
+            ValueError: If update fails
+        """
+        # Import JsonExtManager here to avoid circular imports
+        from ..utils.json_ext_manager import JsonExtManager
+
+        # Extract base Individual data (only fields provided)
+        base_data = PersonConverter.dci_person_to_individual_data(spdci_person)
+
+        # Update base fields if provided
+        for field, value in base_data.items():
+            if field == 'json_ext':
+                continue  # Handle separately
+            if field == 'gender_code':
+                # Handle gender lookup
+                try:
+                    from core.models import Gender
+                    gender = Gender.objects.filter(code=value).first()
+                    if gender:
+                        individual.gender = gender
+                except ImportError:
+                    pass
+            else:
+                setattr(individual, field, value)
+
+        # Update json_ext with registry-specific data
+        current_json_ext = individual.json_ext or {}
+        updated_json_ext = JsonExtManager.update_json_ext(
+            current_json_ext=current_json_ext,
+            spdci_person=spdci_person,
+            registry_type=registry_type,
+            metadata=metadata
+        )
+
+        individual.json_ext = updated_json_ext
+
+        # Set audit fields
+        individual.user_updated = user
+
+        # Save (HistoryBusinessModel handles versioning)
+        individual.save()
+
+        return individual, updated_json_ext

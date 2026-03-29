@@ -24,3 +24,5 @@ Thumbs.db
 *.pyd
 __pycache__/
 *.py[cod]
+
+claude/

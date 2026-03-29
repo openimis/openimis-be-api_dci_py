@@ -18,6 +18,13 @@ from .subscription_serializer import (
     DCINotifyResponseSerializer,
 )
 
+from .person_create_serializer import (
+    DCIPersonCreateSerializer,
+    DCIPersonCreateRequestSerializer,
+    DCIPersonUpdateRequestSerializer,
+    DCIPersonResponseSerializer,
+)
+
 __all__ = [
     'DCIPersonSerializer',
     'DCISearchRequestSerializer',
@@ -33,4 +40,8 @@ __all__ = [
     'DCIUnsubscribeResponseSerializer',
     'DCINotifyRequestSerializer',
     'DCINotifyResponseSerializer',
+    'DCIPersonCreateSerializer',
+    'DCIPersonCreateRequestSerializer',
+    'DCIPersonUpdateRequestSerializer',
+    'DCIPersonResponseSerializer',
 ]
