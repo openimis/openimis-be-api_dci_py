@@ -31,6 +31,8 @@ class LogInMixin:
             User: Test user instance
         """
         from django.contrib.auth import get_user_model
+        from django.contrib.auth.models import Permission
+        from django.contrib.contenttypes.models import ContentType
         from core.models import InteractiveUser
 
         User = get_user_model()
@@ -53,7 +55,57 @@ class LogInMixin:
             except Exception:
                 pass  # InteractiveUser might not be required
 
+        # Grant required DCI API permissions
+        self._grant_dci_permissions(user)
+
         return user
+
+    def _grant_dci_permissions(self, user):
+        """
+        Grant required permissions for DCI API testing.
+
+        Args:
+            user: User instance to grant permissions to
+        """
+        try:
+            from django.contrib.auth.models import Permission
+            from django.contrib.contenttypes.models import ContentType
+
+            # Try to get Individual content type
+            try:
+                from individual.models import Individual
+                content_type = ContentType.objects.get_for_model(Individual)
+            except (ImportError, Exception):
+                # If Individual module not available, create generic permissions
+                return
+
+            # Required permissions for DCI API
+            permission_codenames = [
+                'gql_query_individuals_perms',
+                'gql_mutation_create_individuals_perms',
+                'gql_mutation_update_individuals_perms',
+                'gql_mutation_delete_individuals_perms',
+            ]
+
+            for codename in permission_codenames:
+                # Try to get or create permission
+                permission, created = Permission.objects.get_or_create(
+                    codename=codename,
+                    defaults={
+                        'name': f'Can {codename.replace("gql_", "").replace("_perms", "")}',
+                        'content_type': content_type
+                    }
+                )
+                user.user_permissions.add(permission)
+
+            # Save user to ensure permissions are applied
+            user.save()
+
+        except Exception as e:
+            # If permission setup fails, log but don't fail the test
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to grant DCI permissions: {e}")
 
     def login(self):
         """

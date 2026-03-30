@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "OpenIMIS DCI API",
-    "description": "**SPDCI (Social Protection Digital Convergence Initiative) compliant Registry Core API**\n\nThis API implements the SPDCI Registry Core API specification following **SPDCI FR (Farmer Registry) v1.0.0** standard.\n\n**Supported Operations:**\n- **Search**: Synchronous and asynchronous person search with multiple query types (idtype-value, expression, predicate)\n- **Subscription**: Event-based notifications for registry changes (REGISTER, UPDATE, DEREGISTER)\n- **Person Details**: Retrieve individual person records\n\n**Registry Type:** Configurable via `SPDCI_REGISTRY_TYPE` environment variable (FR, SR, or IBR)\n\n**Compliance Status:** ✅ SPDCI FR v1.0.0 Certified (March 2026)\n",
+    "description": "**SPDCI (Social Protection Digital Convergence Initiative) compliant Registry Core API**\n\nThis API implements the SPDCI Registry Core API specification following **SPDCI FR (Farmer Registry) v1.0.0** standard.\n\n**Supported Operations:**\n- **Register**: Create new person records (farmers, beneficiaries, members)\n- **Update**: Modify existing person records\n- **Search**: Synchronous and asynchronous person search with multiple query types (idtype-value, expression, predicate)\n- **Subscription**: Event-based notifications for registry changes (REGISTER, UPDATE, DEREGISTER)\n- **Person Details**: Retrieve individual person records\n\n**Registry Types:** Supports FR (Farmer Registry), SR (Social Registry), and IBR (Insurance Beneficiary Registry) formats\n\n**Compliance Status:** ✅ SPDCI FR v1.0.0 Certified (March 2026)\n",
     "version": "1.0.0",
     "contact": {
       "name": "OpenIMIS Support",
@@ -1062,6 +1062,581 @@
         ]
       }
     },
+    "/api/api_dci/registry/register": {
+      "post": {
+        "summary": "Create (Register) a new Person",
+        "deprecated": false,
+        "description": "Register a new person in the registry following the SPDCI standard.\n\n**Action:** register\n\n**Registry Types:** Supports FR (Farmer Registry) and SR (Social Registry) formats\n\n**Response:** Returns ACK with the newly created person record including system-generated ID\n\n**Test ID:** FR-CORE-RG-REGISTER-01\n",
+        "tags": [
+          "Registry Core API"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DCIRegisterRequest"
+              },
+              "examples": {
+                "farmerRegistry": {
+                  "value": {
+                    "signature": "",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "msg-register-fr-001",
+                      "message_ts": "2026-03-29T10:00:00Z",
+                      "action": "register",
+                      "sender_id": "agricultural-dept",
+                      "receiver_id": "openimis",
+                      "is_msg_encrypted": false
+                    },
+                    "message": {
+                      "transaction_id": "txn-register-001",
+                      "register_request": [
+                        {
+                          "reference_id": "ref-farmer-001",
+                          "timestamp": "2026-03-29T10:00:00Z",
+                          "data": {
+                            "version": "1.0.0",
+                            "reg_type": "FR",
+                            "reg_record_type": "Farmer",
+                            "reg_record": {
+                              "@type": "Person",
+                              "firstName": "Marie",
+                              "lastName": "Dubois",
+                              "dob": "1985-06-15",
+                              "gender": "Female",
+                              "phone": "+33612345678",
+                              "email": "marie.dubois@example.fr",
+                              "address": {
+                                "street": "123 Rue de la Ferme",
+                                "city": "Lyon",
+                                "state": "Auvergne-Rhône-Alpes",
+                                "postalCode": "69001",
+                                "country": "France"
+                              },
+                              "identifiers": [
+                                {
+                                  "type": "FARMER_ID",
+                                  "value": "FR-FARMER-2026-001",
+                                  "issued_by": "Ministry of Agriculture"
+                                },
+                                {
+                                  "type": "NATIONAL_ID",
+                                  "value": "1850615987654",
+                                  "issued_by": "French Government"
+                                }
+                              ],
+                              "farmerDetails": {
+                                "farmSize": "25.5",
+                                "farmSizeUnit": "hectares",
+                                "cropTypes": ["wheat", "corn", "sunflower"],
+                                "registrationDate": "2026-03-29"
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "Farmer Registry - Create new farmer"
+                },
+                "socialRegistry": {
+                  "value": {
+                    "signature": "",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "msg-register-sr-001",
+                      "message_ts": "2026-03-29T10:00:00Z",
+                      "action": "register",
+                      "sender_id": "social-services",
+                      "receiver_id": "openimis",
+                      "is_msg_encrypted": false
+                    },
+                    "message": {
+                      "transaction_id": "txn-register-sr-001",
+                      "register_request": [
+                        {
+                          "reference_id": "ref-beneficiary-001",
+                          "timestamp": "2026-03-29T10:00:00Z",
+                          "data": {
+                            "version": "1.0.0",
+                            "reg_type": "SR",
+                            "reg_record_type": "Beneficiary",
+                            "reg_record": {
+                              "@type": "Person",
+                              "firstName": "Jean",
+                              "lastName": "Martin",
+                              "dob": "1978-03-20",
+                              "gender": "Male",
+                              "phone": "+33698765432",
+                              "email": "jean.martin@example.fr",
+                              "address": {
+                                "street": "45 Avenue des Champs",
+                                "city": "Paris",
+                                "state": "Île-de-France",
+                                "postalCode": "75008",
+                                "country": "France"
+                              },
+                              "identifiers": [
+                                {
+                                  "type": "SOCIAL_SECURITY_NUMBER",
+                                  "value": "1780320123456",
+                                  "issued_by": "French Social Services"
+                                },
+                                {
+                                  "type": "NATIONAL_ID",
+                                  "value": "FR78032098765",
+                                  "issued_by": "French Government"
+                                }
+                              ],
+                              "socialInfo": {
+                                "householdSize": 4,
+                                "dependents": 2,
+                                "incomeLevel": "low",
+                                "employmentStatus": "unemployed",
+                                "benefitPrograms": ["food_assistance", "housing_support"]
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "Social Registry - Create new beneficiary"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Person registered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DCIRegisterResponse"
+                },
+                "examples": {
+                  "farmerRegistryResponse": {
+                    "value": {
+                      "signature": "",
+                      "header": {
+                        "version": "1.0.0",
+                        "message_id": "response-register-fr-001",
+                        "message_ts": "2026-03-29T10:00:01Z",
+                        "action": "on-register",
+                        "sender_id": "openimis",
+                        "receiver_id": "agricultural-dept",
+                        "status": "succ"
+                      },
+                      "message": {
+                        "transaction_id": "txn-register-001",
+                        "correlation_id": "txn-register-001",
+                        "register_response": [
+                          {
+                            "reference_id": "ref-farmer-001",
+                            "timestamp": "2026-03-29T10:00:01Z",
+                            "status": "succ",
+                            "status_reason_message": "Farmer registered successfully",
+                            "data": {
+                              "version": "1.0.0",
+                              "reg_type": "FR",
+                              "reg_record_type": "Farmer",
+                              "reg_record": {
+                                "@type": "Person",
+                                "id": "openimis:individual:a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                                "firstName": "Marie",
+                                "lastName": "Dubois",
+                                "dob": "1985-06-15",
+                                "gender": "Female",
+                                "phone": "+33612345678",
+                                "email": "marie.dubois@example.fr",
+                                "identifiers": [
+                                  {
+                                    "type": "FARMER_ID",
+                                    "value": "FR-FARMER-2026-001"
+                                  }
+                                ],
+                                "createdAt": "2026-03-29T10:00:01Z"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "summary": "Farmer Registry - Success response"
+                  },
+                  "socialRegistryResponse": {
+                    "value": {
+                      "signature": "",
+                      "header": {
+                        "version": "1.0.0",
+                        "message_id": "response-register-sr-001",
+                        "message_ts": "2026-03-29T10:00:01Z",
+                        "action": "on-register",
+                        "sender_id": "openimis",
+                        "receiver_id": "social-services",
+                        "status": "succ"
+                      },
+                      "message": {
+                        "transaction_id": "txn-register-sr-001",
+                        "correlation_id": "txn-register-sr-001",
+                        "register_response": [
+                          {
+                            "reference_id": "ref-beneficiary-001",
+                            "timestamp": "2026-03-29T10:00:01Z",
+                            "status": "succ",
+                            "status_reason_message": "Beneficiary registered successfully",
+                            "data": {
+                              "version": "1.0.0",
+                              "reg_type": "SR",
+                              "reg_record_type": "Beneficiary",
+                              "reg_record": {
+                                "@type": "Person",
+                                "id": "openimis:individual:b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                                "firstName": "Jean",
+                                "lastName": "Martin",
+                                "dob": "1978-03-20",
+                                "gender": "Male",
+                                "phone": "+33698765432",
+                                "email": "jean.martin@example.fr",
+                                "identifiers": [
+                                  {
+                                    "type": "SOCIAL_SECURITY_NUMBER",
+                                    "value": "1780320123456"
+                                  }
+                                ],
+                                "createdAt": "2026-03-29T10:00:01Z"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "summary": "Social Registry - Success response"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Invalid request format or validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "signature": "",
+                  "header": {
+                    "version": "1.0.0",
+                    "message_id": "error-register-001",
+                    "message_ts": "2026-03-29T10:00:01Z",
+                    "action": "on-register",
+                    "status": "error"
+                  },
+                  "message": {
+                    "transaction_id": "txn-register-001",
+                    "register_response": [
+                      {
+                        "reference_id": "ref-farmer-001",
+                        "timestamp": "2026-03-29T10:00:01Z",
+                        "status": "fail",
+                        "status_reason_code": "VALIDATION_ERROR",
+                        "status_reason_message": "Missing required field: firstName"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/api_dci/registry/update": {
+      "post": {
+        "summary": "Update an existing Person",
+        "deprecated": false,
+        "description": "Update an existing person record in the registry following the SPDCI standard.\n\n**Action:** update\n\n**Registry Types:** Supports FR (Farmer Registry) and SR (Social Registry) formats\n\n**Required:** Person ID must be provided to identify the record to update\n\n**Response:** Returns ACK with the updated person record\n\n**Test ID:** FR-CORE-RG-UPDATE-01\n",
+        "tags": [
+          "Registry Core API"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DCIUpdateRequest"
+              },
+              "examples": {
+                "farmerRegistryUpdate": {
+                  "value": {
+                    "signature": "",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "msg-update-fr-001",
+                      "message_ts": "2026-03-29T11:00:00Z",
+                      "action": "update",
+                      "sender_id": "agricultural-dept",
+                      "receiver_id": "openimis",
+                      "is_msg_encrypted": false
+                    },
+                    "message": {
+                      "transaction_id": "txn-update-001",
+                      "update_request": [
+                        {
+                          "reference_id": "ref-update-farmer-001",
+                          "timestamp": "2026-03-29T11:00:00Z",
+                          "data": {
+                            "version": "1.0.0",
+                            "reg_type": "FR",
+                            "reg_record_type": "Farmer",
+                            "reg_record": {
+                              "@type": "Person",
+                              "id": "openimis:individual:a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                              "firstName": "Marie",
+                              "lastName": "Dubois-Laurent",
+                              "phone": "+33612345999",
+                              "email": "marie.laurent@example.fr",
+                              "address": {
+                                "street": "456 Rue de la Nouvelle Ferme",
+                                "city": "Lyon",
+                                "state": "Auvergne-Rhône-Alpes",
+                                "postalCode": "69002",
+                                "country": "France"
+                              },
+                              "farmerDetails": {
+                                "farmSize": "32.0",
+                                "farmSizeUnit": "hectares",
+                                "cropTypes": ["wheat", "corn", "sunflower", "barley"],
+                                "certifications": ["organic_farming"]
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "Farmer Registry - Update farmer details"
+                },
+                "socialRegistryUpdate": {
+                  "value": {
+                    "signature": "",
+                    "header": {
+                      "version": "1.0.0",
+                      "message_id": "msg-update-sr-001",
+                      "message_ts": "2026-03-29T11:00:00Z",
+                      "action": "update",
+                      "sender_id": "social-services",
+                      "receiver_id": "openimis",
+                      "is_msg_encrypted": false
+                    },
+                    "message": {
+                      "transaction_id": "txn-update-sr-001",
+                      "update_request": [
+                        {
+                          "reference_id": "ref-update-beneficiary-001",
+                          "timestamp": "2026-03-29T11:00:00Z",
+                          "data": {
+                            "version": "1.0.0",
+                            "reg_type": "SR",
+                            "reg_record_type": "Beneficiary",
+                            "reg_record": {
+                              "@type": "Person",
+                              "id": "openimis:individual:b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                              "firstName": "Jean",
+                              "lastName": "Martin",
+                              "phone": "+33698765999",
+                              "email": "jean.martin.new@example.fr",
+                              "address": {
+                                "street": "78 Boulevard de la République",
+                                "city": "Paris",
+                                "state": "Île-de-France",
+                                "postalCode": "75009",
+                                "country": "France"
+                              },
+                              "socialInfo": {
+                                "householdSize": 5,
+                                "dependents": 3,
+                                "incomeLevel": "low",
+                                "employmentStatus": "part_time",
+                                "benefitPrograms": ["food_assistance", "housing_support", "child_care"]
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "summary": "Social Registry - Update beneficiary details"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Person updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DCIUpdateResponse"
+                },
+                "examples": {
+                  "farmerUpdateResponse": {
+                    "value": {
+                      "signature": "",
+                      "header": {
+                        "version": "1.0.0",
+                        "message_id": "response-update-fr-001",
+                        "message_ts": "2026-03-29T11:00:01Z",
+                        "action": "on-update",
+                        "sender_id": "openimis",
+                        "receiver_id": "agricultural-dept",
+                        "status": "succ"
+                      },
+                      "message": {
+                        "transaction_id": "txn-update-001",
+                        "correlation_id": "txn-update-001",
+                        "update_response": [
+                          {
+                            "reference_id": "ref-update-farmer-001",
+                            "timestamp": "2026-03-29T11:00:01Z",
+                            "status": "succ",
+                            "status_reason_message": "Farmer updated successfully",
+                            "data": {
+                              "version": "1.0.0",
+                              "reg_type": "FR",
+                              "reg_record_type": "Farmer",
+                              "reg_record": {
+                                "@type": "Person",
+                                "id": "openimis:individual:a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                                "firstName": "Marie",
+                                "lastName": "Dubois-Laurent",
+                                "dob": "1985-06-15",
+                                "gender": "Female",
+                                "phone": "+33612345999",
+                                "email": "marie.laurent@example.fr",
+                                "updatedAt": "2026-03-29T11:00:01Z"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "summary": "Farmer Registry - Update success response"
+                  },
+                  "socialUpdateResponse": {
+                    "value": {
+                      "signature": "",
+                      "header": {
+                        "version": "1.0.0",
+                        "message_id": "response-update-sr-001",
+                        "message_ts": "2026-03-29T11:00:01Z",
+                        "action": "on-update",
+                        "sender_id": "openimis",
+                        "receiver_id": "social-services",
+                        "status": "succ"
+                      },
+                      "message": {
+                        "transaction_id": "txn-update-sr-001",
+                        "correlation_id": "txn-update-sr-001",
+                        "update_response": [
+                          {
+                            "reference_id": "ref-update-beneficiary-001",
+                            "timestamp": "2026-03-29T11:00:01Z",
+                            "status": "succ",
+                            "status_reason_message": "Beneficiary updated successfully",
+                            "data": {
+                              "version": "1.0.0",
+                              "reg_type": "SR",
+                              "reg_record_type": "Beneficiary",
+                              "reg_record": {
+                                "@type": "Person",
+                                "id": "openimis:individual:b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                                "firstName": "Jean",
+                                "lastName": "Martin",
+                                "dob": "1978-03-20",
+                                "gender": "Male",
+                                "phone": "+33698765999",
+                                "email": "jean.martin.new@example.fr",
+                                "updatedAt": "2026-03-29T11:00:01Z"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "summary": "Social Registry - Update success response"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Invalid request format or validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "404": {
+            "description": "Person not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "signature": "",
+                  "header": {
+                    "version": "1.0.0",
+                    "message_id": "error-update-001",
+                    "message_ts": "2026-03-29T11:00:01Z",
+                    "action": "on-update",
+                    "status": "error"
+                  },
+                  "message": {
+                    "transaction_id": "txn-update-001",
+                    "update_response": [
+                      {
+                        "reference_id": "ref-update-farmer-001",
+                        "timestamp": "2026-03-29T11:00:01Z",
+                        "status": "fail",
+                        "status_reason_code": "NOT_FOUND",
+                        "status_reason_message": "Person with ID 'invalid-id' not found"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/api_dci/registry/notify": {
       "post": {
         "summary": "Receive registry event notifications",
@@ -1826,6 +2401,322 @@
             "type": "object",
             "additionalProperties": true,
             "properties": {}
+          }
+        }
+      },
+      "DCIRegisterRequest": {
+        "type": "object",
+        "required": [
+          "header",
+          "message"
+        ],
+        "properties": {
+          "signature": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {}
+              }
+            ]
+          },
+          "header": {
+            "$ref": "#/components/schemas/DCIHeader"
+          },
+          "message": {
+            "type": "object",
+            "required": [
+              "transaction_id",
+              "register_request"
+            ],
+            "properties": {
+              "transaction_id": {
+                "type": "string"
+              },
+              "register_request": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "reference_id",
+                    "timestamp",
+                    "data"
+                  ],
+                  "properties": {
+                    "reference_id": {
+                      "type": "string"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "version",
+                        "reg_type",
+                        "reg_record_type",
+                        "reg_record"
+                      ],
+                      "properties": {
+                        "version": {
+                          "type": "string"
+                        },
+                        "reg_type": {
+                          "type": "string",
+                          "enum": [
+                            "FR",
+                            "SR",
+                            "IBR"
+                          ]
+                        },
+                        "reg_record_type": {
+                          "type": "string"
+                        },
+                        "reg_record": {
+                          "$ref": "#/components/schemas/DCIPerson"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "DCIRegisterResponse": {
+        "type": "object",
+        "properties": {
+          "signature": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {}
+              }
+            ]
+          },
+          "header": {
+            "$ref": "#/components/schemas/DCIHeader"
+          },
+          "message": {
+            "type": "object",
+            "properties": {
+              "transaction_id": {
+                "type": "string"
+              },
+              "correlation_id": {
+                "type": "string"
+              },
+              "register_response": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "reference_id": {
+                      "type": "string"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "succ",
+                        "fail"
+                      ]
+                    },
+                    "status_reason_code": {
+                      "type": "string"
+                    },
+                    "status_reason_message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "version": {
+                          "type": "string"
+                        },
+                        "reg_type": {
+                          "type": "string"
+                        },
+                        "reg_record_type": {
+                          "type": "string"
+                        },
+                        "reg_record": {
+                          "$ref": "#/components/schemas/DCIPerson"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "DCIUpdateRequest": {
+        "type": "object",
+        "required": [
+          "header",
+          "message"
+        ],
+        "properties": {
+          "signature": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {}
+              }
+            ]
+          },
+          "header": {
+            "$ref": "#/components/schemas/DCIHeader"
+          },
+          "message": {
+            "type": "object",
+            "required": [
+              "transaction_id",
+              "update_request"
+            ],
+            "properties": {
+              "transaction_id": {
+                "type": "string"
+              },
+              "update_request": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "reference_id",
+                    "timestamp",
+                    "data"
+                  ],
+                  "properties": {
+                    "reference_id": {
+                      "type": "string"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "version",
+                        "reg_type",
+                        "reg_record_type",
+                        "reg_record"
+                      ],
+                      "properties": {
+                        "version": {
+                          "type": "string"
+                        },
+                        "reg_type": {
+                          "type": "string",
+                          "enum": [
+                            "FR",
+                            "SR",
+                            "IBR"
+                          ]
+                        },
+                        "reg_record_type": {
+                          "type": "string"
+                        },
+                        "reg_record": {
+                          "$ref": "#/components/schemas/DCIPerson"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "DCIUpdateResponse": {
+        "type": "object",
+        "properties": {
+          "signature": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {}
+              }
+            ]
+          },
+          "header": {
+            "$ref": "#/components/schemas/DCIHeader"
+          },
+          "message": {
+            "type": "object",
+            "properties": {
+              "transaction_id": {
+                "type": "string"
+              },
+              "correlation_id": {
+                "type": "string"
+              },
+              "update_response": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "reference_id": {
+                      "type": "string"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "succ",
+                        "fail"
+                      ]
+                    },
+                    "status_reason_code": {
+                      "type": "string"
+                    },
+                    "status_reason_message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "version": {
+                          "type": "string"
+                        },
+                        "reg_type": {
+                          "type": "string"
+                        },
+                        "reg_record_type": {
+                          "type": "string"
+                        },
+                        "reg_record": {
+                          "$ref": "#/components/schemas/DCIPerson"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
