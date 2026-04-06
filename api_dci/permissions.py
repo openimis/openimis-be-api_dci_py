@@ -23,9 +23,9 @@ class DCIPersonPermissions(BasePermission):
         For update operations, requires individual.gql_mutation_update_individuals_perms
         For delete operations, requires individual.gql_mutation_delete_individuals_perms
         """
-        # Allow unauthenticated for now - can be restricted later
+        # Require authentication for all DCI Person endpoints
         if not hasattr(request, 'user') or not request.user or not request.user.is_authenticated:
-            return True
+            return False
 
         # Map HTTP methods to required permissions
         permission_map = {

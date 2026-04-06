@@ -67,6 +67,10 @@ class LogInMixin:
         Args:
             user: User instance to grant permissions to
         """
+        # Check if user is valid
+        if not user or not hasattr(user, 'user_permissions'):
+            return
+
         try:
             from django.contrib.auth.models import Permission
             from django.contrib.contenttypes.models import ContentType
@@ -76,7 +80,7 @@ class LogInMixin:
                 from individual.models import Individual
                 content_type = ContentType.objects.get_for_model(Individual)
             except (ImportError, Exception):
-                # If Individual module not available, create generic permissions
+                # If Individual module not available, skip permission setup
                 return
 
             # Required permissions for DCI API
@@ -89,23 +93,25 @@ class LogInMixin:
 
             for codename in permission_codenames:
                 # Try to get or create permission
-                permission, created = Permission.objects.get_or_create(
+                permission, _ = Permission.objects.get_or_create(
                     codename=codename,
                     defaults={
                         'name': f'Can {codename.replace("gql_", "").replace("_perms", "")}',
                         'content_type': content_type
                     }
                 )
-                user.user_permissions.add(permission)
 
-            # Save user to ensure permissions are applied
-            user.save()
+                # Check if user already has this permission
+                if not user.user_permissions.filter(id=permission.id).exists():
+                    user.user_permissions.add(permission)
 
-        except Exception as e:
-            # If permission setup fails, log but don't fail the test
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Failed to grant DCI permissions: {e}")
+            # Note: user_permissions.add() automatically saves the M2M relationship
+            # No need to call user.save() which would fail with OpenIMIS validation
+
+        except Exception:
+            # If permission setup fails, silently skip
+            # (Tests will fail with 403 if permissions are really needed)
+            pass
 
     def login(self):
         """

@@ -49,7 +49,7 @@ class DCISearchCriteriaSerializer(serializers.Serializer):
     version = serializers.CharField(max_length=50, required=False)
     reg_record_type = serializers.CharField(max_length=255, required=False)
     query_type = serializers.CharField(max_length=50)
-    query = serializers.DictField()
+    query = serializers.JSONField()  # Accept both dict and list for different query types
     sort = serializers.ListField(child=serializers.DictField(), required=False)
     pagination = serializers.DictField(required=False)
     consent = serializers.DictField(required=False)

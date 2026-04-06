@@ -15,7 +15,7 @@ class PersonAPITestCase(DCIApiTestMixin, PersonTestMixin, LogInMixin, APITestCas
     Test cases for Person DCI API endpoints.
     """
 
-    base_url = "/api/dci/reg/sync/search"
+    base_url = "/api/api_dci/registry/sync/search"
     _json_repr = "test_person_search.json"
 
     def setUp(self):

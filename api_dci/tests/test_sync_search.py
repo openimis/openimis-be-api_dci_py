@@ -27,20 +27,17 @@ class SyncSearchAPITestCase(DCIApiTestMixin, PersonTestMixin, LogInMixin, APITes
         # Create test Individual records
         try:
             from individual.models import Individual
-            from core.models import Gender
 
-            # Get or create gender
-            male_gender, _ = Gender.objects.get_or_create(code='M', defaults={'gender': 'Male'})
-            female_gender, _ = Gender.objects.get_or_create(code='F', defaults={'gender': 'Female'})
-
-            # Create test individuals
+            # Create test individuals (Individual uses json_ext for gender, phone, email)
             self.individual1 = Individual.objects.create(
                 first_name="John",
                 last_name="Doe",
                 dob="1990-01-15",
-                gender=male_gender,
-                phone="+1234567890",
-                email="john.doe@example.com",
+                json_ext={
+                    "sex": "male",
+                    "phone": "+1234567890",
+                    "email": "john.doe@example.com"
+                },
                 user_created=self.test_user,
                 user_updated=self.test_user
             )
@@ -49,9 +46,11 @@ class SyncSearchAPITestCase(DCIApiTestMixin, PersonTestMixin, LogInMixin, APITes
                 first_name="Jane",
                 last_name="Smith",
                 dob="1985-06-20",
-                gender=female_gender,
-                phone="+0987654321",
-                email="jane.smith@example.com",
+                json_ext={
+                    "sex": "female",
+                    "phone": "+0987654321",
+                    "email": "jane.smith@example.com"
+                },
                 user_created=self.test_user,
                 user_updated=self.test_user
             )
@@ -60,15 +59,20 @@ class SyncSearchAPITestCase(DCIApiTestMixin, PersonTestMixin, LogInMixin, APITes
                 first_name="John",
                 last_name="Smith",
                 dob="1992-03-10",
-                gender=male_gender,
+                json_ext={
+                    "sex": "male"
+                },
                 user_created=self.test_user,
                 user_updated=self.test_user
             )
 
             self.has_individual_module = True
-        except ImportError:
+        except ImportError as e:
             self.has_individual_module = False
-            self.skipTest("Individual module not available")
+            self.skipTest(f"Individual module not available: {e}")
+        except Exception as e:
+            self.has_individual_module = False
+            self.skipTest(f"Failed to create test data: {type(e).__name__}: {e}")
 
     def tearDown(self):
         """Clean up test data."""

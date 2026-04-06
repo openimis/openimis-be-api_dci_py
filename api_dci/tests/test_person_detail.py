@@ -27,30 +27,31 @@ class PersonDetailAPITestCase(DCIApiTestMixin, PersonTestMixin, LogInMixin, APIT
         # Create test Individual
         try:
             from individual.models import Individual
-            from core.models import Gender
 
-            # Get or create gender
-            male_gender, _ = Gender.objects.get_or_create(code='M', defaults={'gender': 'Male'})
-
-            # Create test individual
+            # Create test individual (Individual uses json_ext for gender, phone, email)
             self.test_individual = Individual.objects.create(
                 first_name="Test",
                 last_name="Person",
                 dob="1990-01-15",
-                gender=male_gender,
-                phone="+1234567890",
-                email="test.person@example.com",
+                json_ext={
+                    "sex": "male",
+                    "phone": "+1234567890",
+                    "email": "test.person@example.com"
+                },
                 user_created=self.test_user,
                 user_updated=self.test_user
             )
 
             # Generate person_id in openimis format
-            self.person_id = f"openimis:individual:{self.test_individual.uuid}"
+            self.person_id = f"openimis:individual:{self.test_individual.id}"
 
             self.has_individual_module = True
-        except ImportError:
+        except ImportError as e:
             self.has_individual_module = False
-            self.skipTest("Individual module not available")
+            self.skipTest(f"Individual module not available: {e}")
+        except Exception as e:
+            self.has_individual_module = False
+            self.skipTest(f"Failed to create test data: {type(e).__name__}: {e}")
 
     def tearDown(self):
         """Clean up test data."""

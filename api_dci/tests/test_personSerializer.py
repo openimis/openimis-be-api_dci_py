@@ -203,11 +203,15 @@ class DCISearchResponseSerializerTestCase(TestCase):
 
         # Verify header
         self.assertEqual(response_data['header']['action'], 'on-search')
-        self.assertEqual(response_data['header']['status'], 'success')
+        # SPDCI standard uses 'succ' not 'success'
+        self.assertEqual(response_data['header']['status'], 'succ')
         self.assertEqual(response_data['header']['sender_id'], 'openimis')
         self.assertEqual(response_data['header']['receiver_id'], 'test-sender')
 
-        # Verify message
+        # Verify message - SPDCI uses search_response array, not count
         self.assertEqual(response_data['message']['transaction_id'], 'txn-001')
-        self.assertEqual(response_data['message']['count'], 1)
-        self.assertEqual(len(response_data['message']['data']), 1)
+        self.assertIn('search_response', response_data['message'])
+        self.assertEqual(len(response_data['message']['search_response']), 1)
+
+        # Verify total_count is in header (SPDCI standard)
+        self.assertEqual(response_data['header']['total_count'], 1)
