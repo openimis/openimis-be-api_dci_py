@@ -172,6 +172,55 @@ class DCINotifyResponseSerializer(serializers.Serializer):
         }
 
 
+class DCITxnStatusRequestItemSerializer(serializers.Serializer):
+    """Individual txn status request item"""
+    reference_id = serializers.CharField(max_length=255)
+    txn_type = serializers.CharField(max_length=50)
+    attribute_type = serializers.CharField(max_length=50)
+    attribute_value = serializers.CharField(max_length=255)
+
+
+class DCITxnStatusMessageSerializer(serializers.Serializer):
+    """DCI txn status request message"""
+    transaction_id = serializers.CharField(max_length=255)
+    txnstatus_request = DCITxnStatusRequestItemSerializer()
+
+
+class DCITxnStatusRequestSerializer(serializers.Serializer):
+    """
+    Complete DCI txn status request
+    POST /api/api_dci/registry/txn/status
+    """
+    signature = serializers.JSONField(required=False, allow_null=True)
+    header = serializers.DictField()
+    message = DCITxnStatusMessageSerializer()
+
+
+class DCITxnStatusResponseSerializer(serializers.Serializer):
+    """Txn status response serializer - Returns ACK response per SPDCI FR spec"""
+
+    @classmethod
+    def create_ack_response(cls, request_data, transaction_id):
+        return {
+            'signature': request_data.get('signature', ""),
+            'header': {
+                'version': '1.0.0',
+                'message_id': f"ack-{request_data['header']['message_id']}",
+                'message_ts': datetime.utcnow().isoformat() + 'Z',
+                'action': 'on-txn-status',
+                'status': 'succ',
+                'sender_id': request_data['header'].get('receiver_id', 'openimis'),
+                'receiver_id': request_data['header']['sender_id'],
+                'is_msg_encrypted': request_data['header'].get('is_msg_encrypted', False),
+            },
+            'message': {
+                'ack_status': 'ACK',
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'correlation_id': transaction_id,
+            }
+        }
+
+
 class DCIUnsubscribeResponseSerializer(serializers.Serializer):
     """Unsubscribe response serializer - Returns ACK response per SPDCI FR spec"""
 

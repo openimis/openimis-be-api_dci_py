@@ -16,6 +16,8 @@ from .subscription_serializer import (
     DCIUnsubscribeResponseSerializer,
     DCINotifyRequestSerializer,
     DCINotifyResponseSerializer,
+    DCITxnStatusRequestSerializer,
+    DCITxnStatusResponseSerializer,
 )
 
 from .person_create_serializer import (
@@ -40,6 +42,8 @@ __all__ = [
     'DCIUnsubscribeResponseSerializer',
     'DCINotifyRequestSerializer',
     'DCINotifyResponseSerializer',
+    'DCITxnStatusRequestSerializer',
+    'DCITxnStatusResponseSerializer',
     'DCIPersonCreateSerializer',
     'DCIPersonCreateRequestSerializer',
     'DCIPersonUpdateRequestSerializer',

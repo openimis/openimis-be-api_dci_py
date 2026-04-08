@@ -8,7 +8,8 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, Sp
 
 from .views import (
     sync_search, async_search, person_detail, DCILoginViewSet,
-    subscribe, unsubscribe, notify, person_create, person_update
+    subscribe, unsubscribe, notify, person_create, person_update,
+    txn_status,
 )
 
 app_name = 'api_dci'
@@ -28,6 +29,7 @@ urlpatterns = [
     path('registry/subscribe', subscribe, name='subscribe'),
     path('registry/unsubscribe', unsubscribe, name='unsubscribe'),
     path('registry/notify', notify, name='notify'),
+    path('registry/txn/status', txn_status, name='txn-status'),
 
     # OpenAPI documentation endpoints
     path('docs/schema/', SpectacularAPIView.as_view(), name='schema'),
