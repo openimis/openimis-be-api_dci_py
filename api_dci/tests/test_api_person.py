@@ -3,11 +3,9 @@ Integration tests for DCI Person API
 
 Tests the DCI sync/search API endpoint with full request/response cycle.
 """
-from django.test import TestCase
 from rest_framework.test import APITestCase
 from rest_framework import status
 from api_dci.tests.mixin import DCIApiTestMixin, PersonTestMixin, LogInMixin
-from api_dci.tests.utils import load_json_from_test_data
 
 
 class PersonAPITestCase(DCIApiTestMixin, PersonTestMixin, LogInMixin, APITestCase):

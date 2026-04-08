@@ -4,7 +4,7 @@ DCI Person Converter - SPDCI Compliant
 Converts between SPDCI Person schema and OpenIMIS Individual model.
 Follows SPDCI DO.IBR.01 Person Data Object specification.
 """
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Dict, Optional, Tuple
 
 

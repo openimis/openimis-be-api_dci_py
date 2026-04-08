@@ -3,7 +3,6 @@ Integration tests for DCI Subscription API
 
 Tests the DCI /registry/subscribe and /registry/unsubscribe endpoints.
 """
-from django.test import TestCase
 from rest_framework.test import APITestCase
 from rest_framework import status
 from api_dci.tests.mixin import DCIApiTestMixin, LogInMixin
@@ -27,7 +26,7 @@ class SubscriptionAPITestCase(DCIApiTestMixin, LogInMixin, APITestCase):
 
         # Check if subscription models are available
         try:
-            from api_dci.models import DCISubscription
+            from api_dci.models import DCISubscription  # noqa: F401
             self.has_subscription_module = True
         except ImportError:
             self.has_subscription_module = False
@@ -41,7 +40,7 @@ class SubscriptionAPITestCase(DCIApiTestMixin, LogInMixin, APITestCase):
                 DCISubscription.objects.filter(
                     sender_id__startswith="test-"
                 ).delete()
-            except:
+            except Exception:
                 pass
 
     def test_subscribe_valid_request(self):

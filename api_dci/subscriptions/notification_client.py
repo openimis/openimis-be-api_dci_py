@@ -187,7 +187,7 @@ class DCINotificationClient:
                         http_status_code=status_code
                     )
 
-        except asyncio.TimeoutError as e:
+        except asyncio.TimeoutError:
             logger.error(
                 f"Notification to {subscription.subscription_code} timed out after {self.timeout_seconds}s"
             )

@@ -3,7 +3,6 @@ Integration tests for DCI Person Sync Search API
 
 Tests the DCI /registry/sync/search endpoint with full request/response cycle.
 """
-from django.test import TestCase
 from rest_framework.test import APITestCase
 from rest_framework import status
 from api_dci.tests.mixin import DCIApiTestMixin, PersonTestMixin, LogInMixin
@@ -82,7 +81,7 @@ class SyncSearchAPITestCase(DCIApiTestMixin, PersonTestMixin, LogInMixin, APITes
                 Individual.objects.filter(
                     first_name__in=["John", "Jane"]
                 ).delete()
-            except:
+            except Exception:
                 pass
 
     def test_sync_search_valid_request(self):

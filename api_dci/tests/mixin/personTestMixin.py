@@ -3,7 +3,6 @@ Person Test Mixin
 
 Provides test data and utilities specific to DCI Person tests.
 """
-from datetime import date
 
 
 class PersonTestMixin:
@@ -102,5 +101,7 @@ class PersonTestMixin:
         if expected_values:
             for key, expected_value in expected_values.items():
                 if key in person_data:
-                    self.assertEqual(person_data[key], expected_value,
-                                   f"Mismatch in {key}: expected {expected_value}, got {person_data[key]}")
+                    self.assertEqual(
+                        person_data[key], expected_value,
+                        f"Mismatch in {key}: expected {expected_value}, got {person_data[key]}"
+                    )

@@ -7,7 +7,6 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
-from django.db import transaction
 from django.db.models import F
 import uuid
 import logging

@@ -7,7 +7,7 @@ Supports FR (Farmer Registry), SR (Social Registry), and IBR (Integrated Benefic
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, OpenApiExample
+from drf_spectacular.utils import extend_schema
 from django.contrib.auth.models import User
 import logging
 
@@ -96,7 +96,7 @@ def person_create(request):
     try:
         # Check Individual module availability
         try:
-            from individual.models import Individual
+            from individual.models import Individual  # noqa: F401
         except ImportError:
             logger.error("[DCI Person Create] Individual module not available")
             return Response(
@@ -246,7 +246,7 @@ def person_update(request, person_id):
     try:
         # Check Individual module availability
         try:
-            from individual.models import Individual
+            from individual.models import Individual  # noqa: F401
         except ImportError:
             logger.error("[DCI Person Update] Individual module not available")
             return Response(
@@ -265,7 +265,7 @@ def person_update(request, person_id):
             return Response(
                 DCIPersonResponseSerializer.create_error_response(
                     request_data=request.data,
-                    error_message=f"Invalid person_id format. Expected: openimis:individual:{{uuid}}",
+                    error_message="Invalid person_id format. Expected: openimis:individual:{uuid}",
                     operation="update"
                 ),
                 status=status.HTTP_400_BAD_REQUEST
