@@ -75,13 +75,18 @@ class LogInMixin:
             from django.contrib.auth.models import Permission
             from django.contrib.contenttypes.models import ContentType
 
-            # Try to get Individual content type
+            # Try to get Individual content type, fall back to a generic one
+            content_type = None
             try:
                 from individual.models import Individual
                 content_type = ContentType.objects.get_for_model(Individual)
             except (ImportError, Exception):
-                # If Individual module not available, skip permission setup
-                return
+                pass
+
+            if content_type is None:
+                # Use ContentType for the auth User model as a generic fallback
+                from django.contrib.auth import get_user_model
+                content_type = ContentType.objects.get_for_model(get_user_model())
 
             # Required permissions for DCI API
             permission_codenames = [
@@ -105,8 +110,11 @@ class LogInMixin:
                 if not user.user_permissions.filter(id=permission.id).exists():
                     user.user_permissions.add(permission)
 
-            # Note: user_permissions.add() automatically saves the M2M relationship
-            # No need to call user.save() which would fail with OpenIMIS validation
+            # Django caches permissions on the user object after the first has_perm call.
+            # Clear the cache so newly added permissions take effect immediately.
+            for cache_attr in ('_perm_cache', '_user_perm_cache', '_dci_perm_cache'):
+                if hasattr(user, cache_attr):
+                    delattr(user, cache_attr)
 
         except Exception:
             # If permission setup fails, silently skip
@@ -122,6 +130,15 @@ class LogInMixin:
         """
         if not self.test_user:
             self.test_user = self.get_or_create_user_api()
+
+        # Re-fetch the user from DB so Django loads a fresh permission set
+        # (avoids stale permission cache from earlier has_perm calls)
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        try:
+            self.test_user = User.objects.get(pk=self.test_user.pk)
+        except Exception:
+            pass
 
         # Force authentication for the test client
         self.client.force_authenticate(user=self.test_user)
