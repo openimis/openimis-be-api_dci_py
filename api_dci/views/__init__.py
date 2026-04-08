@@ -4,6 +4,7 @@ from .person_detail_view import person_detail
 from .subscription_viewset import subscribe, unsubscribe
 from .notify_viewset import notify
 from .person_create_view import person_create, person_update
+from .txn_status_viewset import txn_status
 
 __all__ = [
     'sync_search',
@@ -15,4 +16,5 @@ __all__ = [
     'notify',
     'person_create',
     'person_update',
+    'txn_status',
 ]

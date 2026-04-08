@@ -4,13 +4,11 @@ Unit tests for Person Serializers
 Tests the DCI Person serializers for validation and data transformation.
 """
 from django.test import TestCase
-from datetime import datetime, date
 from api_dci.serializers.person_serializer import (
     DCIPersonSerializer,
     DCISearchRequestSerializer,
     DCISearchResponseSerializer,
     DCIHeaderSerializer,
-    DCISearchCriteriaSerializer
 )
 
 

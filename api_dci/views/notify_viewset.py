@@ -53,7 +53,7 @@ def notify(request):
     Receives event notifications from external registries when we are a subscriber.
     Returns ACK to confirm receipt.
     """
-    logger.info(f"[DCI Notify] Received notification from external registry")
+    logger.info("[DCI Notify] Received notification from external registry")
 
     # Validate request
     serializer = DCINotifyRequestSerializer(data=request.data)
@@ -76,7 +76,6 @@ def notify(request):
         header_data = validated_data['header']
         message_data = validated_data['message']
         transaction_id = message_data['transaction_id']
-        correlation_id = message_data.get('correlation_id', transaction_id)
         notify_requests = message_data.get('notify_request', [])
 
         sender_id = header_data.get('sender_id')

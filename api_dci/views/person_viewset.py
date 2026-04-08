@@ -6,8 +6,7 @@ REST API views for DCI Person sync/search operations.
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from django.db.models import Q
-from drf_spectacular.utils import extend_schema, OpenApiExample
+from drf_spectacular.utils import extend_schema
 
 from ..serializers import (
     DCISearchRequestSerializer,
@@ -183,7 +182,7 @@ def sync_search(request):
             },
             status=status.HTTP_400_BAD_REQUEST
         )
-    
+
     validated_data = serializer.validated_data
 
     try:
@@ -228,7 +227,6 @@ def sync_search(request):
             if isinstance(query_obj, list):
                 for predicate in query_obj:
                     expr1 = predicate.get('expression1', {})
-                    condition = predicate.get('condition', 'and')
                     expr2 = predicate.get('expression2', {})
 
                     # Apply first expression
@@ -268,7 +266,7 @@ def sync_search(request):
             PersonConverter.individual_to_dci_person(individual)
             for individual in queryset[:100]  # Limit to 100 results
         ]
-        
+
     except ImportError:
         # Individual module not installed
         return Response(
@@ -290,7 +288,7 @@ def sync_search(request):
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-    
+
     # Build response using configured registry type
     registry_type = get_registry_type()
     response_data = DCISearchResponseSerializer.create_response(
@@ -338,17 +336,17 @@ def async_search(request):
             },
             status=status.HTTP_400_BAD_REQUEST
         )
-    
+
     validated_data = serializer.validated_data
-    
+
     try:
         message_data = validated_data['message']
         transaction_id = message_data['transaction_id']
         search_requests = message_data.get('search_request', [])
-        
+
         if not search_requests:
             raise ValueError("No search_request provided")
-            
+
         # Queue background processing
         from ..tasks import BackgroundSearchTask
         task = BackgroundSearchTask(
@@ -356,7 +354,7 @@ def async_search(request):
             search_requests=search_requests
         )
         task.start()
-        
+
     except Exception as e:
         return Response(
             {
@@ -367,11 +365,11 @@ def async_search(request):
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-    
+
     # Return immediate ACK
     response_data = DCISearchResponseSerializer.create_ack_response(
         request_data=request.data,
         transaction_id=transaction_id
     )
-    
+
     return Response(response_data, status=status.HTTP_202_ACCEPTED)

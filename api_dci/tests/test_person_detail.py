@@ -3,7 +3,6 @@ Integration tests for DCI Person Detail API
 
 Tests the GET /registry/person/{person_id} endpoint.
 """
-from django.test import TestCase
 from rest_framework.test import APITestCase
 from rest_framework import status
 from api_dci.tests.mixin import DCIApiTestMixin, PersonTestMixin, LogInMixin
@@ -62,7 +61,7 @@ class PersonDetailAPITestCase(DCIApiTestMixin, PersonTestMixin, LogInMixin, APIT
                     first_name="Test",
                     last_name="Person"
                 ).delete()
-            except:
+            except Exception:
                 pass
 
     def test_get_person_valid_id(self):

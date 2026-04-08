@@ -4,7 +4,6 @@ Test Utilities for DCI tests
 Common utility functions for loading test data and preparing test requests.
 """
 import json
-import os
 from pathlib import Path
 
 

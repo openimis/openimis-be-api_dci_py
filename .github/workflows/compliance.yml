@@ -1,0 +1,292 @@
+name: SPDCI FR Compliance Tests
+
+# Runs the SPDCI Farmer Registry compliance test suite against the OpenIMIS DCI API.
+# Tests are sourced from https://github.com/OpenSPP/spdci-compliance
+#
+# Trigger:
+#   - Automatically on pull requests
+#   - Manually via workflow_dispatch (allows filtering by tag)
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      cucumber_tags:
+        description: 'Cucumber tag filter (e.g. "@smoke", "@tier=core", "@profile=fr-registry")'
+        required: false
+        default: '@smoke'
+      compliance_ref:
+        description: 'spdci-compliance branch/tag to use'
+        required: false
+        default: 'main'
+
+# Minimal openimis module set required for the DCI API.
+# Passed as an inline JSON string so we never need to modify openimis.json.
+env:
+  OPENIMIS_CONF_JSON: >-
+    {"modules":[
+      {"name":"core"},
+      {"name":"location"},
+      {"name":"individual"},
+      {"name":"api_dci"}
+    ]}
+  # Django / Database
+  DJANGO_SETTINGS_MODULE: openIMIS.settings
+  DB_DEFAULT: postgresql
+  DB_HOST: localhost
+  DB_PORT: "5432"
+  DB_NAME: imis
+  DB_USER: imis
+  DB_PASSWORD: imis
+  SECRET_KEY: ci-only-secret-key-not-for-production
+  # Compliance test settings
+  DOMAIN: fr
+  API_BASE_URL: http://localhost:8000/
+  RESPONSE_TIME_THRESHOLD_MS: "30000"
+
+jobs:
+  spdci-compliance:
+    name: SPDCI FR Compliance
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_DB: imis
+          POSTGRES_USER: imis
+          POSTGRES_PASSWORD: imis
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # ── Checkouts ──────────────────────────────────────────────────────────
+
+      - name: Checkout openimis-be-api_dci_py (current module)
+        uses: actions/checkout@v4
+        with:
+          path: openimis-be-api_dci_py
+
+      - name: Checkout openimis-be_py (Django superproject)
+        uses: actions/checkout@v4
+        with:
+          repository: openimis/openimis-be_py
+          ref: develop
+          path: openimis-be_py
+
+      - name: Checkout SPDCI compliance test suite
+        uses: actions/checkout@v4
+        with:
+          repository: OpenSPP/spdci-compliance
+          ref: ${{ github.event.inputs.compliance_ref || 'main' }}
+          path: spdci-compliance
+
+      # ── Language runtimes ───────────────────────────────────────────────────
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: spdci-compliance/package-lock.json
+
+      # ── Dependencies ────────────────────────────────────────────────────────
+
+      - name: Install SPDCI compliance dependencies
+        working-directory: spdci-compliance
+        run: npm ci
+
+      - name: Install Python / OpenIMIS dependencies
+        working-directory: openimis-be_py
+        run: |
+          pip install --upgrade pip wheel
+          pip install -r requirements.txt
+          # Install the openimis modules required by DCI API
+          pip install \
+            openimis-be-core \
+            openimis-be-location \
+            openimis-be-individual
+          # Install the current api_dci module from the PR branch
+          pip install -e ../openimis-be-api_dci_py
+
+      # ── Database setup ──────────────────────────────────────────────────────
+
+      - name: Run Django migrations
+        working-directory: openimis-be_py/openIMIS
+        run: python manage.py migrate --no-input
+
+      - name: Create CI admin user
+        working-directory: openimis-be_py/openIMIS
+        env:
+          CI_ADMIN_PASSWORD: ${{ secrets.CI_ADMIN_PASSWORD || 'Ci@dmin_2026!' }}
+        run: |
+          python manage.py shell << 'PYEOF'
+          import os
+          from django.contrib.auth import get_user_model
+
+          User = get_user_model()
+          password = os.environ['CI_ADMIN_PASSWORD']
+          username = 'ci_compliance_admin'
+
+          if User.objects.filter(username=username).exists():
+              user = User.objects.get(username=username)
+              user.set_password(password)
+              user.is_superuser = True
+              user.is_staff = True
+              user.save()
+              print(f"Updated existing user: {username}")
+          else:
+              user = User.objects.create_superuser(
+                  username=username,
+                  password=password,
+              )
+              print(f"Created superuser: {username}")
+
+          # Create the openimis InteractiveUser record (required for JWT auth)
+          try:
+              from core.models import InteractiveUser
+              if not InteractiveUser.objects.filter(login_name=username).exists():
+                  InteractiveUser.objects.create(
+                      login_name=username,
+                      user=user,
+                      language_id='en',
+                      audit_user_id=-1,
+                  )
+                  print(f"Created InteractiveUser: {username}")
+          except Exception as e:
+              print(f"InteractiveUser creation skipped: {e}")
+          PYEOF
+
+      # ── Start server ─────────────────────────────────────────────────────────
+
+      - name: Start Django development server
+        working-directory: openimis-be_py/openIMIS
+        run: |
+          python manage.py runserver 0.0.0.0:8000 &
+          echo $! > /tmp/django_server.pid
+
+          # Poll until the server responds (max 60 s)
+          echo "Waiting for Django server..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/api/api_dci/login/ -o /dev/null 2>&1 \
+               || curl -sf http://localhost:8000/ -o /dev/null 2>&1; then
+              echo "Server is ready after ${i} attempts"
+              break
+            fi
+            sleep 2
+          done
+
+      # ── Authenticate ────────────────────────────────────────────────────────
+
+      - name: Obtain DCI JWT token
+        id: auth
+        env:
+          CI_ADMIN_PASSWORD: ${{ secrets.CI_ADMIN_PASSWORD || 'Ci@dmin_2026!' }}
+        run: |
+          RESPONSE=$(curl -sf -X POST http://localhost:8000/api/api_dci/login/ \
+            -H 'Content-Type: application/json' \
+            -d "{\"username\": \"ci_compliance_admin\", \"password\": \"${CI_ADMIN_PASSWORD}\"}" \
+            2>&1) || true
+
+          TOKEN=$(echo "$RESPONSE" | python3 -c "
+          import sys, json
+          try:
+              data = json.load(sys.stdin)
+              print(data.get('token', ''))
+          except Exception:
+              print('')
+          " 2>/dev/null)
+
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::Could not obtain auth token. Compliance tests will run without authentication."
+            echo "Server response: $RESPONSE"
+          else
+            echo "Auth token obtained successfully (length: ${#TOKEN})"
+          fi
+
+          # Mask the token in logs, then export it
+          echo "::add-mask::$TOKEN"
+          echo "DCI_AUTH_TOKEN=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      # ── Compliance tests ─────────────────────────────────────────────────────
+
+      - name: Run SPDCI FR compliance tests
+        working-directory: spdci-compliance
+        env:
+          DCI_AUTH_TOKEN: ${{ steps.auth.outputs.DCI_AUTH_TOKEN }}
+          CUCUMBER_TAGS: ${{ github.event.inputs.cucumber_tags || '@smoke' }}
+        run: |
+          echo "Running compliance tests with tags: $CUCUMBER_TAGS"
+          echo "Target: $API_BASE_URL"
+          npx cucumber-js \
+            --tags "$CUCUMBER_TAGS" \
+            --format summary \
+            --format html:results/report.html \
+            --format json:results/report.json \
+            2>&1
+        # Non-blocking: report failures but don't fail the workflow.
+        # Remove the next line once full compliance is achieved.
+        continue-on-error: true
+
+      # ── Report ───────────────────────────────────────────────────────────────
+
+      - name: Parse compliance results
+        if: always()
+        run: |
+          if [ -f spdci-compliance/results/report.json ]; then
+            python3 << 'PYEOF'
+          import json, sys
+
+          with open('spdci-compliance/results/report.json') as f:
+              report = json.load(f)
+
+          total = passed = failed = skipped = 0
+          for feature in report:
+              for element in feature.get('elements', []):
+                  total += 1
+                  statuses = [s.get('result', {}).get('status') for s in element.get('steps', [])]
+                  if any(s == 'failed' for s in statuses):
+                      failed += 1
+                  elif all(s == 'skipped' for s in statuses):
+                      skipped += 1
+                  else:
+                      passed += 1
+
+          print(f"\n{'='*50}")
+          print(f"  SPDCI FR Compliance Results")
+          print(f"{'='*50}")
+          print(f"  Total scenarios : {total}")
+          print(f"  Passed          : {passed}")
+          print(f"  Failed          : {failed}")
+          print(f"  Skipped         : {skipped}")
+          score = (passed / total * 100) if total else 0
+          print(f"  Compliance score: {score:.1f}%")
+          print(f"{'='*50}\n")
+          PYEOF
+          fi
+
+      - name: Upload compliance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spdci-compliance-report-${{ github.run_number }}
+          path: spdci-compliance/results/
+          retention-days: 30
+
+      - name: Stop Django server
+        if: always()
+        run: |
+          if [ -f /tmp/django_server.pid ]; then
+            kill $(cat /tmp/django_server.pid) 2>/dev/null || true
+          fi

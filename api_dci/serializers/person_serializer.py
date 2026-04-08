@@ -208,7 +208,7 @@ class DCISearchResponseSerializer(serializers.Serializer):
                     ]
                 }
             }
-    
+
     @classmethod
     def create_ack_response(cls, request_data, transaction_id):
         """

@@ -33,6 +33,7 @@ api_dci/tests/test_personSerializer.py
 api_dci/tests/test_person_detail.py
 api_dci/tests/test_subscription.py
 api_dci/tests/test_sync_search.py
+api_dci/tests/test_txn_status.py
 api_dci/tests/utils.py
 api_dci/tests/mixin/__init__.py
 api_dci/tests/mixin/dciApiTestMixin.py
@@ -49,6 +50,7 @@ api_dci/views/person_create_view.py
 api_dci/views/person_detail_view.py
 api_dci/views/person_viewset.py
 api_dci/views/subscription_viewset.py
+api_dci/views/txn_status_viewset.py
 openimis_be_api_dci.egg-info/PKG-INFO
 openimis_be_api_dci.egg-info/SOURCES.txt
 openimis_be_api_dci.egg-info/dependency_links.txt
