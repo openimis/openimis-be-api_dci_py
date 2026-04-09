@@ -44,6 +44,7 @@ api_dci/tests/test/__init__.py
 api_dci/utils/__init__.py
 api_dci/utils/json_ext_manager.py
 api_dci/views/__init__.py
+api_dci/views/callback_viewset.py
 api_dci/views/login_viewset.py
 api_dci/views/notify_viewset.py
 api_dci/views/person_create_view.py
