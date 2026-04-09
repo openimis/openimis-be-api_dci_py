@@ -159,8 +159,8 @@ class DCISubscriptionFilter:
         # Check if resource has matching identifier
         identifiers = resource_data.get('identifiers', [])
         for identifier in identifiers:
-            if (identifier.get('id_type') == id_type
-                    and identifier.get('id_value') == id_value):
+            id_type_match = identifier.get('id_type') == id_type
+            if id_type_match and identifier.get('id_value') == id_value:
                 return True
 
         return False

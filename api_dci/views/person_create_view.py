@@ -127,7 +127,8 @@ def person_create(request):
         header_data = validated_data['header']
         metadata = {
             'source_system': header_data.get('sender_id', ''),
-            'external_id': person_data.get('identifier', [{}])[0].get('value', '') if person_data.get('identifier') else ''
+            'external_id': person_data.get('identifier', [{}])[0].get('value', '')
+            if person_data.get('identifier') else ''
         }
 
         # Create Individual from SPDCI data
@@ -304,7 +305,8 @@ def person_update(request, person_id):
         header_data = validated_data['header']
         metadata = {
             'source_system': header_data.get('sender_id', ''),
-            'external_id': person_data.get('identifier', [{}])[0].get('value', '') if person_data.get('identifier') else ''
+            'external_id': person_data.get('identifier', [{}])[0].get('value', '')
+            if person_data.get('identifier') else ''
         }
 
         # Update Individual from SPDCI data
