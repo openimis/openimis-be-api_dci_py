@@ -20,7 +20,7 @@ class DCIHeaderSerializer(serializers.Serializer):
     message_ts = serializers.DateTimeField()
     action = serializers.CharField(max_length=50)
     sender_id = serializers.CharField(max_length=255)
-    sender_uri = serializers.CharField(max_length=255, required=False)
+    sender_uri = serializers.CharField(max_length=255, required=False, allow_blank=True)
     receiver_id = serializers.CharField(max_length=255, required=False)
     total_count = serializers.IntegerField(required=False)
     is_msg_encrypted = serializers.BooleanField(default=False, required=False)
@@ -95,19 +95,41 @@ class DCISearchResponseSerializer(serializers.Serializer):
     message = DCISearchResponseMessageSerializer()
     
     @classmethod
-    def create_response(cls, request_data, persons, transaction_id, reference_id=""):
+    def create_response(cls, request_data, persons, transaction_id,
+                        reference_id="", registry_type=None):
         """
-        Create a DCI search response from request and results
-        
+        Create a SPDCI-compliant search response.
+
         Args:
             request_data: Original request data dict
-            persons: List of DCI Person dicts
+            persons: List of SPDCI reg_record dicts (Group or Farmer)
             transaction_id: Transaction ID from request
             reference_id: Reference ID to tie response to request
-            
+            registry_type: "social" or "farmer" (falls back to app config)
+
         Returns:
-            dict: DCI response data
+            dict: SPDCI response data
         """
+        if registry_type is None:
+            from ..apps import ApiDciConfig
+            registry_type = ApiDciConfig.registry_type
+
+        if registry_type == "farmer":
+            reg_type = "ns:org:RegistryType:FR"
+            reg_record_type = "spdci-extensions-dci:Farmer"
+        else:
+            reg_type = "ns:org:RegistryType:Social"
+            reg_record_type = "Group"
+
+        search_criteria = {}
+        search_reqs = request_data.get('message', {}).get('search_request', [])
+        if search_reqs:
+            search_criteria = search_reqs[0].get('search_criteria', {})
+
+        pagination = search_criteria.get('pagination', {})
+        page_size = pagination.get('page_size', 100)
+        page_number = pagination.get('page_number', 1)
+
         return {
             'signature': request_data.get('signature', ""),
             'header': {
@@ -121,20 +143,33 @@ class DCISearchResponseSerializer(serializers.Serializer):
                 'total_count': len(persons),
                 'is_msg_encrypted': request_data['header'].get('is_msg_encrypted', False),
                 'meta': request_data['header'].get('meta', {}),
-                'status': 'success'
+                'status': 'succ',
+                'status_reason_code': '',
+                'status_reason_message': 'Success',
+                'completed_count': len(persons),
             },
             'message': {
                 'transaction_id': transaction_id,
+                'correlation_id': f"corr-{transaction_id}",
                 'search_response': [
                     {
                         "reference_id": reference_id,
                         "timestamp": datetime.utcnow().isoformat() + 'Z',
                         "status": "succ",
-                        "status_reason_code": "succ",
+                        "status_reason_code": "",
                         "status_reason_message": "Success",
-                        "registry_data": {
-                            "data": persons
-                        }
+                        "data": {
+                            "version": "1.0.0",
+                            "reg_type": reg_type,
+                            "reg_record_type": reg_record_type,
+                            "reg_records": persons,
+                        },
+                        "pagination": {
+                            "page_size": page_size,
+                            "page_number": page_number,
+                            "total_count": len(persons),
+                        },
+                        "locale": "eng",
                     }
                 ]
             }

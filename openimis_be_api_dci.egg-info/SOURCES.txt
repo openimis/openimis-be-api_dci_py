@@ -6,6 +6,7 @@ setup.py
 api_dci/__init__.py
 api_dci/apps.py
 api_dci/permissions.py
+api_dci/tasks.py
 api_dci/urls.py
 api_dci/converters/__init__.py
 api_dci/converters/person_converter.py

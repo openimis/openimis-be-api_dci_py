@@ -10,88 +10,54 @@ class BackgroundSearchTask(threading.Thread):
     Once completed, sends a POST request with the results to the sender_uri callback.
     """
     
-    def __init__(self, request_data, search_requests, *args, **kwargs):
+    def __init__(self, request_data, search_requests, results_store=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.daemon = True
         self.request_data = request_data
         self.search_requests = search_requests
+        self.results_store = results_store
         
     def run(self):
+        transaction_id = self.request_data.get('message', {}).get('transaction_id')
         try:
-            from individual.models import Individual
-            from .converters.person_converter import PersonConverter
+            from .views.person_viewset import _build_queryset_from_search, _convert_to_persons
             from .serializers.person_serializer import DCISearchResponseSerializer
-            
-            # Extract common message details
-            transaction_id = self.request_data.get('message', {}).get('transaction_id')
+
             sender_uri = self.request_data.get('header', {}).get('sender_uri')
-            
-            if not sender_uri:
-                logger.error("DCI Async Search failed: No sender_uri provided for callback.")
-                return
 
             search_request = self.search_requests[0]
             reference_id = search_request.get('reference_id', '')
-            search_criteria = search_request.get('search_criteria', {})
-            query_obj = search_criteria.get('query', {})
-            
-            # Navigate DCI expression structure: query -> value -> expression -> query
-            expression_q = query_obj.get('value', {}).get('expression', {}).get('query', {})
-            
-            if not expression_q:
-                expression_q = query_obj
 
-            queryset = Individual.objects.filter(is_deleted=False)
-            
-            filter_list = expression_q.get('$and', [])
-            if not filter_list and isinstance(expression_q, dict) and '$and' not in expression_q:
-                filter_list = [{k: {"$eq": v}} for k, v in expression_q.items() if k != '@type']
-            
-            filters = {}
-            for item in filter_list:
-                if isinstance(item, dict):
-                    for k, v in item.items():
-                        if isinstance(v, dict) and '$eq' in v:
-                            filters[k] = v['$eq']
-                        else:
-                            filters[k] = v
+            queryset, offset, page_size = _build_queryset_from_search(search_request)
+            persons = _convert_to_persons(queryset, offset, page_size)
 
-            if 'firstName' in filters:
-                queryset = queryset.filter(first_name__icontains=filters['firstName'])
-            if 'lastName' in filters:
-                queryset = queryset.filter(last_name__icontains=filters['lastName'])
-            if 'dob' in filters:
-                queryset = queryset.filter(dob=filters['dob'])
-            if 'gender' in filters:
-                gender_map = {'Male': 'M', 'Female': 'F', 'Other': 'O'}
-                gender_code = gender_map.get(filters['gender'])
-                if gender_code:
-                    queryset = queryset.filter(gender__code=gender_code)
-            if 'phone' in filters:
-                queryset = queryset.filter(phone__icontains=filters['phone'])
-            if 'email' in filters:
-                queryset = queryset.filter(email__icontains=filters['email'])
-            
-            # Convert to DCI Person format
-            persons = [
-                PersonConverter.individual_to_dci_person(individual)
-                for individual in queryset[:100]
-            ]
-            
-            # Build and send response callback
             response_data = DCISearchResponseSerializer.create_response(
                 request_data=self.request_data,
                 persons=persons,
                 transaction_id=transaction_id,
                 reference_id=reference_id
             )
-            
-            # Post back to the callback URL securely
-            requests.post(
-                sender_uri, 
-                json=response_data,
-                headers={"Content-Type": "application/json"},
-                timeout=10
-            )
-            
+
+            # Store results for txn/status polling
+            if self.results_store is not None and transaction_id:
+                self.results_store[transaction_id] = {
+                    'status': 'succ',
+                    'result': response_data,
+                }
+
+            # POST callback to sender_uri if provided
+            if sender_uri:
+                requests.post(
+                    sender_uri,
+                    json=response_data,
+                    headers={"Content-Type": "application/json"},
+                    timeout=10
+                )
+
         except Exception as e:
             logger.error(f"DCI Async Search background task failed: {str(e)}")
+            if self.results_store is not None and transaction_id:
+                self.results_store[transaction_id] = {
+                    'status': 'rjct',
+                    'error': str(e),
+                }
